@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/fc792843-b1da-448e-ba00-63322a3d9c99
     If you already have a TabGroup Config you can skip this
 - For the AI to work install [Ollama](https://ollama.com/)
     Im using the `llama3.1` in the script, you are free to use anything else if you prefer to do so.
-- __**RECOMENDED**__ Alternatively u can use gemini api key, go to [Ai Studios](https://aistudio.google.com) and get a API Key. Paste it inside the apiConfig
+- __**RECOMMENDED**__ Alternatively u can use gemini api key, go to [Ai Studios](https://aistudio.google.com) and get a API Key. Paste it inside the apiConfig
 
 ## Setup and Install
 - Copy and paste the `tab_sort.uc.js` file to your `chrome` folder.

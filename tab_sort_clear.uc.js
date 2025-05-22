@@ -1,13 +1,14 @@
-// VERSION 5.0.0 Enhanced Grouping Logic
+// VERSION 5.1.0 AI-Only Grouping Option & Enhanced AI Context
 (() => {
     // --- Configuration ---
     const CONFIG = {
+        aiOnlyGrouping: true, // << --- Set to true to let AI handle all grouping logic
         apiConfig: {
             ollama: {
                 endpoint: 'http://localhost:11434/api/generate',
                 enabled: false,
                 model: 'llama3.1:latest',
-                promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint) and assign a concise category (1-2 words, Title Case) for EACH tab.
+                promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint, OpenerID) and assign a concise category (1-2 words, Title Case) for EACH tab.
 
                 Existing Categories (Use these EXACT names if a tab fits):
                 {EXISTING_CATEGORIES_LIST}
@@ -34,14 +35,53 @@
                 5. Just the list of categories, separated by newlines.
                 ---
 
-                Output:`
+                Output:`,
+                promptTemplateAiOnlyBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint, OpenerID) and assign a concise category (1-2 words, Title Case) for EACH tab.
+
+                    You are an advanced tab grouping assistant. Your task is to categorize the browser tabs below by emulating the following multi-stage process:
+
+                        1.  **Deterministic Grouping (Strong Signals):**
+                            *   Prioritize grouping tabs that seem to be opened from the same parent source (using 'OpenerID' if available and relevant).
+                            *   Identify common content types (e.g., 'Dev Docs', 'Spreadsheet', 'Social Media') based on URL, title patterns, and 'ContentTypeHint'.
+                            *   Group tabs sharing common, significant keywords in their titles or identical primary hostnames (e.g., 'GitHub' for github.com tabs).
+
+                        2.  **Similarity-Based Grouping:**
+                            *   For tabs not clearly grouped by strong signals, analyze their text content (title and description) for semantic similarity.
+                            *   Group tabs with highly similar text content, even if keywords or hostnames differ slightly.
+
+                        3.  **Comprehensive Categorization & Refinement:**
+                            *   Assign the most appropriate category to all tabs, ensuring each tab gets one.
+                            *   If a tab fits an existing category (from 'Existing Categories' list below, or one you've conceptually formed during this process for other tabs), use that EXACT category name.
+                            *   If a new category is needed, create a concise one (1-2 words, Title Case).
+
+                        4.  **Consistency and Consolidation:**
+                            *   Strive for consistent naming. Avoid near-duplicate names (e.g., "Project Doc" and "Project Docs" should ideally be one category like "Project Docs").
+                            *   The goal is to create logical, well-defined groups.
+
+                    Existing Categories (Use these EXACT names if a tab fits an already established group):
+                    {EXISTING_CATEGORIES_LIST}
+
+                    ---
+                    Input Tab Data:
+                    {TAB_DATA_LIST}
+
+                    ---
+                    Instructions for Output:
+                    1. Output ONLY the category names.
+                    2. Provide EXACTLY ONE category name per line.
+                    3. The number of lines in your output MUST EXACTLY MATCH the number of tabs in the Input Tab Data list above.
+                    4. DO NOT include numbering, explanations, apologies, markdown formatting, or any surrounding text like "Output:" or backticks.
+                    5. Just the list of categories, separated by newlines.
+                    ---
+
+                    Output:`
             },
             gemini: {
                 enabled: true,
-                apiKey: 'AIzaSyBPioQ8HxwzNdb76Gg2n92ptXdtBrHYdrY', // <<<--- PASTE YOUR KEY HERE --- >>>
+                apiKey: 'YOUR_GEMINI_API_KEY', // <<<--- PASTE YOUR KEY HERE --- >>>
                 model: 'gemini-1.5-flash-latest',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
-                promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint) and assign a concise category (1-2 words, Title Case) for EACH tab.
+                promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint, OpenerID) and assign a concise category (1-2 words, Title Case) for EACH tab.
 
                     Existing Categories (Use these EXACT names if a tab fits):
                     {EXISTING_CATEGORIES_LIST}
@@ -54,6 +94,45 @@
                         *   Use Title/Description/ContentTypeHint for specifics or generic domains.
                     3.  **Consistency is CRITICAL:** Use the EXACT SAME category name for all tabs belonging to the same logical group (whether assigned an existing or a new category).
                     4.  **Format:** 1-2 words, Title Case.
+
+                    ---
+                    Input Tab Data:
+                    {TAB_DATA_LIST}
+
+                    ---
+                    Instructions for Output:
+                    1. Output ONLY the category names.
+                    2. Provide EXACTLY ONE category name per line.
+                    3. The number of lines in your output MUST EXACTLY MATCH the number of tabs in the Input Tab Data list above.
+                    4. DO NOT include numbering, explanations, apologies, markdown formatting, or any surrounding text like "Output:" or backticks.
+                    5. Just the list of categories, separated by newlines.
+                    ---
+
+                    Output:`,
+                promptTemplateAiOnlyBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint, OpenerID) and assign a concise category (1-2 words, Title Case) for EACH tab.
+
+                    You are an advanced tab grouping assistant. Your task is to categorize the browser tabs below by emulating the following multi-stage process:
+
+                        1.  **Deterministic Grouping (Strong Signals):**
+                            *   Prioritize grouping tabs that seem to be opened from the same parent source (using 'OpenerID' if available and relevant).
+                            *   Identify common content types (e.g., 'Dev Docs', 'Spreadsheet', 'Social Media') based on URL, title patterns, and 'ContentTypeHint'.
+                            *   Group tabs sharing common, significant keywords in their titles or identical primary hostnames (e.g., 'GitHub' for github.com tabs).
+
+                        2.  **Similarity-Based Grouping:**
+                            *   For tabs not clearly grouped by strong signals, analyze their text content (title and description) for semantic similarity.
+                            *   Group tabs with highly similar text content, even if keywords or hostnames differ slightly.
+
+                        3.  **Comprehensive Categorization & Refinement:**
+                            *   Assign the most appropriate category to all tabs, ensuring each tab gets one.
+                            *   If a tab fits an existing category (from 'Existing Categories' list below, or one you've conceptually formed during this process for other tabs), use that EXACT category name.
+                            *   If a new category is needed, create a concise one (1-2 words, Title Case).
+
+                        4.  **Consistency and Consolidation:**
+                            *   Strive for consistent naming. Avoid near-duplicate names (e.g., "Project Doc" and "Project Docs" should ideally be one category like "Project Docs").
+                            *   The goal is to create logical, well-defined groups.
+
+                    Existing Categories (Use these EXACT names if a tab fits an already established group):
+                    {EXISTING_CATEGORIES_LIST}
 
                     ---
                     Input Tab Data:
@@ -102,11 +181,9 @@
             tfIdfMinDocsForCorpus: 3,
             openerTabGrouping: {
                 enabled: true
-                // minTabs now defaults to CONFIG.preGroupingThreshold implicitly in the code
             },
             contentTypeGrouping: {
                 enabled: true
-                // minTabs now defaults to CONFIG.preGroupingThreshold implicitly in the code
             },
             contentTypePatterns: [{
                 name: "Spreadsheet",
@@ -292,6 +369,7 @@
     let groupColorIndex = 0;
     let isSorting = false;
     let commandListenerAdded = false;
+    let tabDataCache = new Map(); // Moved to be accessible by sortTabsByTopic
 
     // --- Helper Functions ---
 
@@ -586,18 +664,32 @@
         validTabsWithData.forEach(item => item.tab.classList.add('tab-is-sorting'));
 
         try {
-            if (gemini.enabled) {
+            const promptTemplateToUse = CONFIG.aiOnlyGrouping ?
+                (gemini.enabled ? gemini.promptTemplateAiOnlyBatch : ollama.promptTemplateAiOnlyBatch) :
+                (gemini.enabled ? gemini.promptTemplateBatch : ollama.promptTemplateBatch);
+
+            if (!promptTemplateToUse) {
+                 throw new Error("Appropriate AI prompt template not found for the selected API and mode.");
+            }
+
+            const formattedTabDataList = validTabsWithData.map((item, index) =>
+                `${index + 1}.\nTitle: "${item.data.title}"\nURL: "${item.data.url}"\nDescription: "${item.data.description}"\nContentTypeHint: "${item.contentTypeHint || 'N/A'}"\nOpenerID: "${item.data.openerTabId || 'None'}"`
+            ).join('\n\n');
+            const formattedExistingCategories = existingCategoryNames.length > 0 ? existingCategoryNames.map(name => `- ${name}`).join('\n') : "None";
+            const prompt = promptTemplateToUse
+                .replace("{EXISTING_CATEGORIES_LIST}", formattedExistingCategories)
+                .replace("{TAB_DATA_LIST}", formattedTabDataList);
+
+            if (gemini.enabled && (CONFIG.aiOnlyGrouping || !ollama.enabled)) { // Prioritize Gemini if enabled, or if it's the only one for the mode
                 apiChoice = "Gemini";
-                if (!gemini.apiKey || gemini.apiKey === 'YOUR_GEMINI-API-KEY') throw new Error("Gemini API key is missing or not set. Please paste your key in the CONFIG section.");
-                console.log(`Batch AI (Gemini): Requesting categories for ${validTabsWithData.length} tabs, context: ${existingCategoryNames.length} existing categories.`);
-                const formattedTabDataList = validTabsWithData.map((item, index) => `${index + 1}.\nTitle: "${item.data.title}"\nURL: "${item.data.url}"\nDescription: "${item.data.description}"\nContentTypeHint: "${item.contentTypeHint || 'N/A'}"`).join('\n\n');
-                const formattedExistingCategories = existingCategoryNames.length > 0 ? existingCategoryNames.map(name => `- ${name}`).join('\n') : "None";
-                const prompt = gemini.promptTemplateBatch.replace("{EXISTING_CATEGORIES_LIST}", formattedExistingCategories).replace("{TAB_DATA_LIST}", formattedTabDataList);
+                if (!gemini.apiKey || gemini.apiKey === 'YOUR_GEMINI-API-KEY' || gemini.apiKey.startsWith('AIzaSyD') && gemini.apiKey.length < 30) throw new Error("Gemini API key is missing or not set. Please paste your key in the CONFIG section."); // Basic check
+                console.log(`Batch AI (Gemini): Requesting categories for ${validTabsWithData.length} tabs, context: ${existingCategoryNames.length} existing categories. Mode: ${CONFIG.aiOnlyGrouping ? 'AI-Only' : 'Standard'}`);
+
                 const apiUrl = `${gemini.apiBaseUrl}${gemini.model}:generateContent?key=${gemini.apiKey}`;
                 const headers = {
                     'Content-Type': 'application/json'
                 };
-                const estimatedOutputTokens = Math.max(256, validTabsWithData.length * 20);
+                const estimatedOutputTokens = Math.max(256, validTabsWithData.length * 20); // Increased base for potentially more complex reasoning in AI-Only
                 const requestBody = {
                     contents: [{
                         parts: [{
@@ -640,25 +732,11 @@
                 const lines = aiText.split('\n').map(line => line.trim()).filter(Boolean);
                 if (lines.length !== validTabsWithData.length) {
                     console.warn(`Batch AI (Gemini): Mismatch! Expected ${validTabsWithData.length} topics, received ${lines.length}.`);
-                    if (validTabsWithData.length === 1 && lines.length > 0) {
-                        const topic = processTopic(lines[0]);
-                        result = [{
-                            tab: validTabsWithData[0].tab,
-                            topic
-                        }];
-                    } else if (lines.length > validTabsWithData.length) {
-                        const topics = lines.slice(0, validTabsWithData.length).map(processTopic);
-                        result = validTabsWithData.map((item, i) => ({
-                            tab: item.tab,
-                            topic: topics[i]
-                        }));
-                    } else {
-                        const topics = lines.map(processTopic);
-                        result = validTabsWithData.map((item, i) => ({
-                            tab: item.tab,
-                            topic: i < topics.length ? topics[i] : "Uncategorized"
-                        }));
-                    }
+                    // Flexible handling of mismatch
+                    result = validTabsWithData.map((item, i) => ({
+                        tab: item.tab,
+                        topic: i < lines.length ? processTopic(lines[i]) : "Uncategorized"
+                    }));
                 } else {
                     const topics = lines.map(processTopic);
                     result = validTabsWithData.map((item, i) => ({
@@ -668,18 +746,14 @@
                 }
             } else if (ollama.enabled) {
                 apiChoice = "Ollama";
-                console.log(`Batch AI (Ollama): Requesting categories for ${validTabsWithData.length} tabs, context: ${existingCategoryNames.length} existing categories.`);
-                // ... (Ollama logic - unchanged but uses validTabsWithData)
-                const formattedTabDataList = validTabsWithData.map((item, index) => `${index + 1}.\nTitle: "${item.data.title}"\nURL: "${item.data.url}"\nDescription: "${item.data.description}"\nContentTypeHint: "${item.contentTypeHint || 'N/A'}"`).join('\n\n');
-                const formattedExistingCategories = existingCategoryNames.length > 0 ? existingCategoryNames.map(name => `- ${name}`).join('\n') : "None";
-                const prompt = ollama.promptTemplateBatch.replace("{EXISTING_CATEGORIES_LIST}", formattedExistingCategories).replace("{TAB_DATA_LIST}", formattedTabDataList);
+                console.log(`Batch AI (Ollama): Requesting categories for ${validTabsWithData.length} tabs, context: ${existingCategoryNames.length} existing categories. Mode: ${CONFIG.aiOnlyGrouping ? 'AI-Only' : 'Standard'}`);
                 const requestBody = {
                     model: ollama.model,
                     prompt: prompt,
                     stream: false,
                     options: {
                         temperature: 0.1,
-                        num_predict: validTabsWithData.length * 20
+                        num_predict: validTabsWithData.length * 25 // Increased slightly for AI-Only
                     }
                 };
                 const response = await fetch(ollama.endpoint, {
@@ -697,27 +771,12 @@
                 let aiText = data.response?.trim();
                 if (!aiText) throw new Error("Ollama: Empty API response");
                 const lines = aiText.split('\n').map(line => line.trim()).filter(Boolean);
-                if (lines.length !== validTabsWithData.length) {
+                 if (lines.length !== validTabsWithData.length) {
                     console.warn(`Batch AI (Ollama): Mismatch! Expected ${validTabsWithData.length}, received ${lines.length}.`);
-                    if (validTabsWithData.length === 1 && lines.length > 0) {
-                        const topic = processTopic(lines[0]);
-                        result = [{
-                            tab: validTabsWithData[0].tab,
-                            topic
-                        }];
-                    } else if (lines.length > validTabsWithData.length) {
-                        const topics = lines.slice(0, validTabsWithData.length).map(processTopic);
-                        result = validTabsWithData.map((item, i) => ({
-                            tab: item.tab,
-                            topic: topics[i]
-                        }));
-                    } else {
-                        const topics = lines.map(processTopic);
-                        result = validTabsWithData.map((item, i) => ({
-                            tab: item.tab,
-                            topic: i < topics.length ? topics[i] : "Uncategorized"
-                        }));
-                    }
+                    result = validTabsWithData.map((item, i) => ({
+                        tab: item.tab,
+                        topic: i < lines.length ? processTopic(lines[i]) : "Uncategorized"
+                    }));
                 } else {
                     const topics = lines.map(processTopic);
                     result = validTabsWithData.map((item, i) => ({
@@ -726,14 +785,14 @@
                     }));
                 }
             } else {
-                throw new Error("No AI API is enabled in the configuration.");
+                throw new Error("No AI API is enabled in the configuration for the current mode.");
             }
             return result;
         } catch (error) {
             console.error(`Batch AI (${apiChoice}): Error getting topics:`, error);
             return validTabsWithData.map(item => ({
                 tab: item.tab,
-                topic: "Uncategorized"
+                topic: "Uncategorized" // Fallback
             }));
         } finally {
             setTimeout(() => {
@@ -751,11 +810,13 @@
             return;
         }
         isSorting = true;
+        tabDataCache.clear(); // Clear cache for fresh data each run
         const selectedTabs = gBrowser.selectedTabs;
         const isSortingSelectedTabs = selectedTabs.length > 1;
         const actionType = isSortingSelectedTabs ? "selected tabs" : "all ungrouped tabs";
-        console.log(`Starting tab sort (${actionType} mode) - (v4.11.1 - Refined)...`);
+        console.log(`Starting tab sort (${actionType} mode) - (v5.1.0)...`);
         let separatorsToSort = [];
+
         try {
             separatorsToSort = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
             if (separatorsToSort.length > 0) separatorsToSort.forEach(sep => sep.classList.add('separator-is-sorting'));
@@ -764,7 +825,7 @@
             const currentWorkspaceId = window.gZenWorkspaces?.activeWorkspace;
             if (!currentWorkspaceId) {
                 console.error("Cannot get current workspace ID.");
-                return;
+                isSorting = false; return;
             }
 
             const allExistingGroupNames = new Set();
@@ -787,20 +848,19 @@
             }
             if (rawTabsToConsider.length === 0) {
                 console.log(`No tabs to sort in this workspace (${actionType} mode).`);
-                return;
+                isSorting = false; return;
             }
             console.log(`Found ${rawTabsToConsider.length} raw tabs to process.`);
 
             const enrichedTabsToSort = [];
-            const tabDataCache = new Map();
             for (const tab of rawTabsToConsider) {
                 const data = getTabData(tab);
-                tabDataCache.set(tab, data);
+                tabDataCache.set(tab, data); // Populate cache
                 const keywords = extractTitleKeywords(data.title);
                 const contentType = detectContentType(data);
                 let openerNameHint = `Session ${data.openerTabId}`;
                 if (data.openerTabId) {
-                    const openerTabEl = gBrowser.tabs.find(t => t.id === data.openerTabId && t.isConnected);
+                    const openerTabEl = Array.from(gBrowser.tabs).find(t => t.id === data.openerTabId && t.isConnected); // Ensure gBrowser.tabs is array
                     if (openerTabEl && !rawTabsToConsider.includes(openerTabEl)) openerNameHint = getTabData(openerTabEl).title || openerNameHint;
                     else if (rawTabsToConsider.includes(openerTabEl)) openerNameHint = null;
                 } else openerNameHint = null;
@@ -814,275 +874,296 @@
                 });
             }
 
-            const preGroups = {};
-            const handledTabs = new Set();
-            console.log("--- Pre-Grouping Phase 1: Deterministic ---");
+            const finalGroups = {};
+            let aiTabTopics = []; // Stores results from AI
 
-            if (CONFIG.semanticAnalysis.enabled && CONFIG.semanticAnalysis.openerTabGrouping.enabled) {
-                console.log(" -> Opener Tab ID Grouping...");
-                const openerBasedGroups = {};
-                enrichedTabsToSort.forEach(et => {
-                    if (et.openerTabId && et.openerNameHint) {
-                        const key = `opener_${et.openerTabId}_${et.openerNameHint}`;
-                        if (!openerBasedGroups[key]) openerBasedGroups[key] = {
-                            tabs: [],
-                            nameHint: et.openerNameHint
-                        };
-                        openerBasedGroups[key].tabs.push(et);
-                    }
-                });
-                for (const key in openerBasedGroups) {
-                    const groupData = openerBasedGroups[key];
-                    if (groupData.tabs.length >= CONFIG.preGroupingThreshold) {
-                        const unhandled = groupData.tabs.filter(et => !handledTabs.has(et.tab));
-                        if (unhandled.length >= CONFIG.preGroupingThreshold) {
-                            let catName = processTopic(`From: ${groupData.nameHint}`);
-                            let origName = catName;
-                            let c = 1;
-                            while (preGroups[catName]) catName = `${origName} (${c++})`;
-                            console.log(`   - Opener Group: "${catName}" (Hint: "${groupData.nameHint}", Count: ${unhandled.length})`);
-                            preGroups[catName] = unhandled.map(et => et.tab);
-                            unhandled.forEach(et => handledTabs.add(et.tab));
-                        }
-                    }
-                }
-            }
+            if (CONFIG.aiOnlyGrouping) {
+                console.log("--- AI-Only Grouping Mode Activated ---");
+                console.log(" -> AI will perform the full grouping logic based on provided instructions.");
 
-            if (CONFIG.semanticAnalysis.enabled && CONFIG.semanticAnalysis.contentTypeGrouping.enabled) {
-                console.log(" -> Content Type Grouping...");
-                const contentTypeBasedGroups = {};
-                enrichedTabsToSort.forEach(et => {
-                    if (!handledTabs.has(et.tab) && et.contentType) {
-                        if (!contentTypeBasedGroups[et.contentType]) contentTypeBasedGroups[et.contentType] = [];
-                        contentTypeBasedGroups[et.contentType].push(et);
-                    }
-                });
-                for (const typeName in contentTypeBasedGroups) {
-                    if (contentTypeBasedGroups[typeName].length >= CONFIG.preGroupingThreshold) {
-                        const catName = processTopic(typeName);
-                        if (preGroups[catName]) {
-                            console.log(`   - Content Type "${typeName}" -> "${catName}" merging.`);
-                            const newTabs = contentTypeBasedGroups[typeName].filter(et => !handledTabs.has(et.tab)).map(et => et.tab);
-                            if (newTabs.length > 0) {
-                                preGroups[catName].push(...newTabs);
-                                newTabs.forEach(t => handledTabs.add(t));
-                            }
-                            continue;
-                        }
-                        console.log(`   - Content Type Group: "${catName}" (Type: "${typeName}", Count: ${contentTypeBasedGroups[typeName].length})`);
-                        preGroups[catName] = contentTypeBasedGroups[typeName].map(et => et.tab);
-                        contentTypeBasedGroups[typeName].forEach(et => handledTabs.add(et.tab));
-                    }
-                }
-            }
+                const enrichedTabsForAIOnlyMode = enrichedTabsToSort.filter(et => et.tab.isConnected);
+                const existingNamesForAIContext = Array.from(allExistingGroupNames);
 
-            console.log(" -> Title Keyword Grouping (for remaining tabs)...");
-            const keywordToEnrichedTabsMap = new Map();
-            enrichedTabsToSort.forEach(et => {
-                if (!handledTabs.has(et.tab) && et.keywords) {
-                    et.keywords.forEach(kw => {
-                        if (!keywordToEnrichedTabsMap.has(kw)) keywordToEnrichedTabsMap.set(kw, new Set());
-                        keywordToEnrichedTabsMap.get(kw).add(et);
+                if (enrichedTabsForAIOnlyMode.length > 0) {
+                    console.log(` -> Sending ${enrichedTabsForAIOnlyMode.length} tabs to AI for full grouping. Context: ${existingNamesForAIContext.length} existing group names.`);
+                    const aiInputData = enrichedTabsForAIOnlyMode.map(et => ({
+                        tab: et.tab,
+                        data: et.data, // Contains openerTabId
+                        contentTypeHint: et.contentType
+                    }));
+                    aiTabTopics = await askAIForMultipleTopics(aiInputData, existingNamesForAIContext);
+
+                    aiTabTopics.forEach(({ tab, topic }) => {
+                        if (!topic || !tab || !tab.isConnected) return;
+                        const processedTopicName = processTopic(topic); // Process AI topic
+                        if (processedTopicName === "Uncategorized" && enrichedTabsForAIOnlyMode.length > 1) return; // Avoid single "Uncategorized" group if many tabs
+
+                        if (!finalGroups[processedTopicName]) finalGroups[processedTopicName] = [];
+                        if (!finalGroups[processedTopicName].includes(tab)) finalGroups[processedTopicName].push(tab);
                     });
+                } else {
+                    console.log(" -> No tabs to send for AI-only grouping.");
                 }
-            });
-            const potentialKeywordGroups = [];
-            keywordToEnrichedTabsMap.forEach((tabsSet, kw) => {
-                if (tabsSet.size >= CONFIG.preGroupingThreshold) potentialKeywordGroups.push({
-                    kw,
-                    tabs: tabsSet,
-                    size: tabsSet.size
-                });
-            });
-            potentialKeywordGroups.sort((a, b) => b.size - a.size);
-            potentialKeywordGroups.forEach(({
-                kw,
-                tabs
-            }) => {
-                const finalTabs = new Set();
-                tabs.forEach(et => {
-                    if (!handledTabs.has(et.tab)) finalTabs.add(et);
-                });
-                if (finalTabs.size >= CONFIG.preGroupingThreshold) {
-                    const catName = processTopic(kw);
-                    if (preGroups[catName]) {
-                        const newToAdd = Array.from(finalTabs).map(et => et.tab).filter(t => !preGroups[catName].includes(t));
-                        preGroups[catName].push(...newToAdd); // console.log(`   - Added ${newToAdd.length} to keyword group "${catName}" from "${kw}"`);
-                    } else {
-                        preGroups[catName] = Array.from(finalTabs).map(et => et.tab);
-                        console.log(`   - Keyword Group: "${catName}" (Keyword: "${kw}", Count: ${finalTabs.size})`);
-                    }
-                    finalTabs.forEach(et => handledTabs.add(et.tab));
-                }
-            });
 
-            console.log(" -> Hostname Grouping (for remaining tabs)...");
-            const hostnameCounts = {};
-            enrichedTabsToSort.forEach(et => {
-                if (!handledTabs.has(et.tab)) {
-                    const data = et.data;
-                    if (data?.hostname && data.hostname !== 'N/A' && data.hostname !== 'Invalid URL' && data.hostname !== 'Internal Page') {
-                        hostnameCounts[data.hostname] = (hostnameCounts[data.hostname] || 0) + 1;
-                    }
-                }
-            });
-            const sortedHostnames = Object.keys(hostnameCounts).sort((a, b) => hostnameCounts[b] - hostnameCounts[a]);
-            for (const hostname of sortedHostnames) {
-                if (hostnameCounts[hostname] >= CONFIG.preGroupingThreshold) {
-                    const catName = processTopic(hostname);
-                    const tabsForHost = [];
+            } else { // Standard multi-stage grouping (CONFIG.aiOnlyGrouping is false)
+                const preGroups = {};
+                const handledTabs = new Set();
+
+                console.log("--- Pre-Grouping Phase 1: Deterministic ---");
+                if (CONFIG.semanticAnalysis.enabled && CONFIG.semanticAnalysis.openerTabGrouping.enabled) {
+                    console.log(" -> Opener Tab ID Grouping...");
+                    const openerBasedGroups = {};
                     enrichedTabsToSort.forEach(et => {
-                        if (!handledTabs.has(et.tab) && et.data?.hostname === hostname) tabsForHost.push(et.tab);
-                    });
-                    if (tabsForHost.length >= CONFIG.preGroupingThreshold) {
-                        if (preGroups[catName]) {
-                            preGroups[catName].push(...tabsForHost.filter(t => !preGroups[catName].includes(t))); // console.log(`   - Added ${tabsForHost.length} to hostname group "${catName}" from "${hostname}"`);
-                        } else {
-                            preGroups[catName] = tabsForHost;
-                            console.log(`   - Hostname Group: "${catName}" (Hostname: "${hostname}", Count: ${tabsForHost.length})`);
+                        if (et.openerTabId && et.openerNameHint) {
+                            const key = `opener_${et.openerTabId}_${et.openerNameHint}`;
+                            if (!openerBasedGroups[key]) openerBasedGroups[key] = {
+                                tabs: [],
+                                nameHint: et.openerNameHint
+                            };
+                            openerBasedGroups[key].tabs.push(et);
                         }
-                        tabsForHost.forEach(t => handledTabs.add(t));
-                    }
-                }
-            }
-
-            console.log("--- Pre-Grouping Phase 2: Similarity (TF-IDF) ---");
-            const enrichedTabsForTfIdf = enrichedTabsToSort.filter(et => !handledTabs.has(et.tab) && et.tab.isConnected);
-            if (CONFIG.semanticAnalysis.enabled && enrichedTabsForTfIdf.length >= CONFIG.semanticAnalysis.tfIdfMinDocsForCorpus) {
-                console.log(` -> Applying TF-IDF for ${enrichedTabsForTfIdf.length} remaining tabs...`);
-                const docsForTfIdf = enrichedTabsForTfIdf.map(et => ({
-                    id: et.tab.id,
-                    text: `${et.data.title} ${et.data.description}`
-                }));
-                const tfIdfVectors = calculateTfIdf(docsForTfIdf);
-
-                if (Object.keys(tfIdfVectors).length > 0) {
-                    const tabSimilarities = {};
-                    for (let i = 0; i < enrichedTabsForTfIdf.length; i++) {
-                        const etA = enrichedTabsForTfIdf[i];
-                        if (!tfIdfVectors[etA.tab.id] || handledTabs.has(etA.tab)) continue;
-                        if (!tabSimilarities[etA.tab.id]) tabSimilarities[etA.tab.id] = [];
-                        for (let j = i + 1; j < enrichedTabsForTfIdf.length; j++) {
-                            const etB = enrichedTabsForTfIdf[j];
-                            if (!tfIdfVectors[etB.tab.id] || handledTabs.has(etB.tab)) continue;
-                            const score = cosineSimilarity(tfIdfVectors[etA.tab.id], tfIdfVectors[etB.tab.id]);
-                            if (score >= CONFIG.semanticAnalysis.minSimilarityScore) {
-                                tabSimilarities[etA.tab.id].push({
-                                    tab: etB.tab,
-                                    score
-                                });
-                                if (!tabSimilarities[etB.tab.id]) tabSimilarities[etB.tab.id] = [];
-                                tabSimilarities[etB.tab.id].push({
-                                    tab: etA.tab,
-                                    score
-                                });
+                    });
+                    for (const key in openerBasedGroups) {
+                        const groupData = openerBasedGroups[key];
+                        if (groupData.tabs.length >= CONFIG.preGroupingThreshold) {
+                            const unhandled = groupData.tabs.filter(et => !handledTabs.has(et.tab));
+                            if (unhandled.length >= CONFIG.preGroupingThreshold) {
+                                let catName = processTopic(`From: ${groupData.nameHint}`);
+                                let origName = catName;
+                                let c = 1;
+                                while (preGroups[catName]) catName = `${origName} (${c++})`;
+                                console.log(`   - Opener Group: "${catName}" (Hint: "${groupData.nameHint}", Count: ${unhandled.length})`);
+                                preGroups[catName] = unhandled.map(et => et.tab);
+                                unhandled.forEach(et => handledTabs.add(et.tab));
                             }
                         }
-                        if (tabSimilarities[etA.tab.id]) tabSimilarities[etA.tab.id].sort((a, b) => b.score - a.score);
                     }
-                    const tfIdfGroupedTabObjs = new Set();
-                    for (const etOuter of enrichedTabsForTfIdf) {
-                        if (handledTabs.has(etOuter.tab) || tfIdfGroupedTabObjs.has(etOuter.tab)) continue;
-                        const similarRawTabs = [etOuter.tab];
-                        if (tabSimilarities[etOuter.tab.id]) {
-                            tabSimilarities[etOuter.tab.id].forEach(simMatch => {
-                                if (!handledTabs.has(simMatch.tab) && !tfIdfGroupedTabObjs.has(simMatch.tab) && simMatch.score >= CONFIG.semanticAnalysis.minSimilarityScore) {
-                                    similarRawTabs.push(simMatch.tab);
+                }
+
+                if (CONFIG.semanticAnalysis.enabled && CONFIG.semanticAnalysis.contentTypeGrouping.enabled) {
+                    console.log(" -> Content Type Grouping...");
+                    const contentTypeBasedGroups = {};
+                    enrichedTabsToSort.forEach(et => {
+                        if (!handledTabs.has(et.tab) && et.contentType) {
+                            if (!contentTypeBasedGroups[et.contentType]) contentTypeBasedGroups[et.contentType] = [];
+                            contentTypeBasedGroups[et.contentType].push(et);
+                        }
+                    });
+                    for (const typeName in contentTypeBasedGroups) {
+                        if (contentTypeBasedGroups[typeName].length >= CONFIG.preGroupingThreshold) {
+                            const catName = processTopic(typeName);
+                            if (preGroups[catName]) {
+                                const newTabs = contentTypeBasedGroups[typeName].filter(et => !handledTabs.has(et.tab)).map(et => et.tab);
+                                if (newTabs.length > 0) {
+                                    preGroups[catName].push(...newTabs);
+                                    newTabs.forEach(t => handledTabs.add(t));
                                 }
-                            });
-                        }
-                        if (similarRawTabs.length >= CONFIG.preGroupingThreshold) {
-                            const repTabData = tabDataCache.get(similarRawTabs[0]);
-                            let groupName = processTopic(repTabData.title || "Similar Content");
-                            let origName = groupName;
-                            let c = 1;
-                            while (preGroups[groupName] || Object.values(preGroups).flat().includes(similarRawTabs[0])) groupName = `${origName} (Sim ${c++})`;
-                            console.log(`   - TF-IDF Group: "${groupName}" (Based on "${repTabData.title}", Count: ${similarRawTabs.length})`);
-                            preGroups[groupName] = similarRawTabs;
-                            similarRawTabs.forEach(t => {
-                                handledTabs.add(t);
-                                tfIdfGroupedTabObjs.add(t);
-                            });
+                            } else {
+                                console.log(`   - Content Type Group: "${catName}" (Type: "${typeName}", Count: ${contentTypeBasedGroups[typeName].length})`);
+                                preGroups[catName] = contentTypeBasedGroups[typeName].map(et => et.tab);
+                                contentTypeBasedGroups[typeName].forEach(et => handledTabs.add(et.tab));
+                            }
                         }
                     }
                 }
-            } else {
-                console.log(` -> Skipping TF-IDF: SemanticAnalysisEnabled=${CONFIG.semanticAnalysis.enabled}, TabsForTFIDF=${enrichedTabsForTfIdf.length}, MinDocsRequired=${CONFIG.semanticAnalysis.tfIdfMinDocsForCorpus}`);
-            }
 
-            console.log("--- AI Grouping (for remaining tabs) ---");
-            const enrichedTabsForAI = enrichedTabsToSort.filter(et => !handledTabs.has(et.tab) && et.tab.isConnected);
-            let aiTabTopics = [];
-            const comprehensiveExistingNamesForAI = new Set([...allExistingGroupNames, ...Object.keys(preGroups)]);
-            const existingNamesForAIContext = Array.from(comprehensiveExistingNamesForAI);
+                console.log(" -> Title Keyword Grouping (for remaining tabs)...");
+                const keywordToEnrichedTabsMap = new Map();
+                enrichedTabsToSort.forEach(et => {
+                    if (!handledTabs.has(et.tab) && et.keywords) {
+                        et.keywords.forEach(kw => {
+                            if (!keywordToEnrichedTabsMap.has(kw)) keywordToEnrichedTabsMap.set(kw, new Set());
+                            keywordToEnrichedTabsMap.get(kw).add(et);
+                        });
+                    }
+                });
+                const potentialKeywordGroups = [];
+                keywordToEnrichedTabsMap.forEach((tabsSet, kw) => {
+                    if (tabsSet.size >= CONFIG.preGroupingThreshold) potentialKeywordGroups.push({ kw, tabs: tabsSet, size: tabsSet.size });
+                });
+                potentialKeywordGroups.sort((a, b) => b.size - a.size);
+                potentialKeywordGroups.forEach(({ kw, tabs }) => {
+                    const finalTabsForKW = new Set();
+                    tabs.forEach(et => { if (!handledTabs.has(et.tab)) finalTabsForKW.add(et); });
+                    if (finalTabsForKW.size >= CONFIG.preGroupingThreshold) {
+                        const catName = processTopic(kw);
+                        if (preGroups[catName]) {
+                            const newToAdd = Array.from(finalTabsForKW).map(et => et.tab).filter(t => !preGroups[catName].includes(t));
+                            preGroups[catName].push(...newToAdd);
+                        } else {
+                            preGroups[catName] = Array.from(finalTabsForKW).map(et => et.tab);
+                            console.log(`   - Keyword Group: "${catName}" (Keyword: "${kw}", Count: ${finalTabsForKW.size})`);
+                        }
+                        finalTabsForKW.forEach(et => handledTabs.add(et.tab));
+                    }
+                });
 
-            if (enrichedTabsForAI.length > 0) {
-                console.log(` -> ${enrichedTabsForAI.length} tabs remaining for AI. Context: ${existingNamesForAIContext.length} existing/pre-group names.`);
-                const aiInputData = enrichedTabsForAI.map(et => ({
-                    tab: et.tab,
-                    data: et.data,
-                    contentTypeHint: et.contentType
-                }));
-                aiTabTopics = await askAIForMultipleTopics(aiInputData, existingNamesForAIContext);
-            } else {
-                console.log(" -> No tabs remaining for AI analysis.");
-            }
-
-            console.log("--- Combining and Consolidating Groups ---");
-            const finalGroups = {
-                ...preGroups
-            };
-            aiTabTopics.forEach(({
-                tab,
-                topic
-            }) => {
-                if (!topic || topic === "Uncategorized" || !tab || !tab.isConnected) return;
-                if (handledTabs.has(tab)) {
-                    console.warn(` -> AI suggested "${topic}" for already handled tab "${tabDataCache.get(tab)?.title}". Skipping.`);
-                    return;
+                console.log(" -> Hostname Grouping (for remaining tabs)...");
+                const hostnameCounts = {};
+                enrichedTabsToSort.forEach(et => {
+                    if (!handledTabs.has(et.tab)) {
+                        const data = et.data;
+                        if (data?.hostname && data.hostname !== 'N/A' && data.hostname !== 'Invalid URL' && data.hostname !== 'Internal Page') {
+                            hostnameCounts[data.hostname] = (hostnameCounts[data.hostname] || 0) + 1;
+                        }
+                    }
+                });
+                const sortedHostnames = Object.keys(hostnameCounts).sort((a, b) => hostnameCounts[b] - hostnameCounts[a]);
+                for (const hostname of sortedHostnames) {
+                    if (hostnameCounts[hostname] >= CONFIG.preGroupingThreshold) {
+                        const catName = processTopic(hostname);
+                        const tabsForHost = [];
+                        enrichedTabsToSort.forEach(et => { if (!handledTabs.has(et.tab) && et.data?.hostname === hostname) tabsForHost.push(et.tab); });
+                        if (tabsForHost.length >= CONFIG.preGroupingThreshold) {
+                            if (preGroups[catName]) {
+                                preGroups[catName].push(...tabsForHost.filter(t => !preGroups[catName].includes(t)));
+                            } else {
+                                preGroups[catName] = tabsForHost;
+                                console.log(`   - Hostname Group: "${catName}" (Hostname: "${hostname}", Count: ${tabsForHost.length})`);
+                            }
+                            tabsForHost.forEach(t => handledTabs.add(t));
+                        }
+                    }
                 }
-                if (!finalGroups[topic]) finalGroups[topic] = [];
-                if (!finalGroups[topic].includes(tab)) finalGroups[topic].push(tab);
-            });
 
+                console.log("--- Pre-Grouping Phase 2: Similarity (TF-IDF) ---");
+                const enrichedTabsForTfIdf = enrichedTabsToSort.filter(et => !handledTabs.has(et.tab) && et.tab.isConnected);
+                if (CONFIG.semanticAnalysis.enabled && enrichedTabsForTfIdf.length >= CONFIG.semanticAnalysis.tfIdfMinDocsForCorpus) {
+                    console.log(` -> Applying TF-IDF for ${enrichedTabsForTfIdf.length} remaining tabs...`);
+                    const docsForTfIdf = enrichedTabsForTfIdf.map(et => ({ id: et.tab.id, text: `${et.data.title} ${et.data.description}` }));
+                    const tfIdfVectors = calculateTfIdf(docsForTfIdf);
+                    if (Object.keys(tfIdfVectors).length > 0) {
+                        const tabSimilarities = {};
+                        for (let i = 0; i < enrichedTabsForTfIdf.length; i++) {
+                            const etA = enrichedTabsForTfIdf[i];
+                            if (!tfIdfVectors[etA.tab.id] || handledTabs.has(etA.tab)) continue;
+                            if (!tabSimilarities[etA.tab.id]) tabSimilarities[etA.tab.id] = [];
+                            for (let j = i + 1; j < enrichedTabsForTfIdf.length; j++) {
+                                const etB = enrichedTabsForTfIdf[j];
+                                if (!tfIdfVectors[etB.tab.id] || handledTabs.has(etB.tab)) continue;
+                                const score = cosineSimilarity(tfIdfVectors[etA.tab.id], tfIdfVectors[etB.tab.id]);
+                                if (score >= CONFIG.semanticAnalysis.minSimilarityScore) {
+                                    tabSimilarities[etA.tab.id].push({ tab: etB.tab, score });
+                                    if (!tabSimilarities[etB.tab.id]) tabSimilarities[etB.tab.id] = [];
+                                    tabSimilarities[etB.tab.id].push({ tab: etA.tab, score });
+                                }
+                            }
+                            if (tabSimilarities[etA.tab.id]) tabSimilarities[etA.tab.id].sort((a, b) => b.score - a.score);
+                        }
+                        const tfIdfGroupedTabObjs = new Set();
+                        for (const etOuter of enrichedTabsForTfIdf) {
+                            if (handledTabs.has(etOuter.tab) || tfIdfGroupedTabObjs.has(etOuter.tab)) continue;
+                            const similarRawTabs = [etOuter.tab];
+                            if (tabSimilarities[etOuter.tab.id]) {
+                                tabSimilarities[etOuter.tab.id].forEach(simMatch => {
+                                    if (!handledTabs.has(simMatch.tab) && !tfIdfGroupedTabObjs.has(simMatch.tab) && simMatch.score >= CONFIG.semanticAnalysis.minSimilarityScore) {
+                                        similarRawTabs.push(simMatch.tab);
+                                    }
+                                });
+                            }
+                            if (similarRawTabs.length >= CONFIG.preGroupingThreshold) {
+                                const repTabData = tabDataCache.get(similarRawTabs[0]);
+                                let groupName = processTopic(repTabData.title || "Similar Content");
+                                let origName = groupName;
+                                let c = 1;
+                                while (preGroups[groupName] || Object.values(preGroups).flat().includes(similarRawTabs[0])) groupName = `${origName} (Sim ${c++})`;
+                                console.log(`   - TF-IDF Group: "${groupName}" (Based on "${repTabData.title}", Count: ${similarRawTabs.length})`);
+                                preGroups[groupName] = similarRawTabs;
+                                similarRawTabs.forEach(t => { handledTabs.add(t); tfIdfGroupedTabObjs.add(t); });
+                            }
+                        }
+                    }
+                } else {
+                     console.log(` -> Skipping TF-IDF: SemanticAnalysisEnabled=${CONFIG.semanticAnalysis.enabled}, TabsForTFIDF=${enrichedTabsForTfIdf.length}, MinDocsRequired=${CONFIG.semanticAnalysis.tfIdfMinDocsForCorpus}`);
+                }
+
+                console.log("--- AI Grouping (for remaining tabs) ---");
+                const enrichedTabsForAI = enrichedTabsToSort.filter(et => !handledTabs.has(et.tab) && et.tab.isConnected);
+                const comprehensiveExistingNamesForAI = new Set([...allExistingGroupNames, ...Object.keys(preGroups)]);
+                const existingNamesForAIContext = Array.from(comprehensiveExistingNamesForAI);
+
+                if (enrichedTabsForAI.length > 0) {
+                    console.log(` -> ${enrichedTabsForAI.length} tabs remaining for AI. Context: ${existingNamesForAIContext.length} existing/pre-group names.`);
+                    const aiInputData = enrichedTabsForAI.map(et => ({
+                        tab: et.tab,
+                        data: et.data, // Contains openerTabId
+                        contentTypeHint: et.contentType
+                    }));
+                    aiTabTopics = await askAIForMultipleTopics(aiInputData, existingNamesForAIContext);
+                } else {
+                    console.log(" -> No tabs remaining for AI analysis.");
+                }
+
+                console.log("--- Combining Groups (Standard Mode) ---");
+                for (const groupName in preGroups) { // Populate finalGroups with preGroups
+                    if (preGroups.hasOwnProperty(groupName)) {
+                        finalGroups[groupName] = [...(preGroups[groupName] || [])].filter(t => t && t.isConnected);
+                    }
+                }
+                aiTabTopics.forEach(({ tab, topic }) => { // Add AI topics for non-handled tabs
+                    if (!topic || !tab || !tab.isConnected) return;
+                    const processedTopicName = processTopic(topic);
+                    if (processedTopicName === "Uncategorized" && enrichedTabsForAI.length > 1) return;
+
+                    // Tabs in aiTabTopics are guaranteed not to be in handledTabs here
+                    if (!finalGroups[processedTopicName]) finalGroups[processedTopicName] = [];
+                    if (!finalGroups[processedTopicName].includes(tab)) finalGroups[processedTopicName].push(tab);
+                });
+            }
+
+            // --- Shared Logic from here ---
             console.log(" -> Consolidating group names (Levenshtein)...");
             const originalKeys = Object.keys(finalGroups);
             const mergedKeys = new Set();
             const consolidationMap = {};
+
             for (let i = 0; i < originalKeys.length; i++) {
                 let keyA = originalKeys[i];
                 if (mergedKeys.has(keyA)) continue;
-                while (consolidationMap[keyA]) keyA = consolidationMap[keyA];
+                while (consolidationMap[keyA]) keyA = consolidationMap[keyA]; // Follow chain if keyA was already merged into another
                 if (mergedKeys.has(keyA)) continue;
+
                 for (let j = i + 1; j < originalKeys.length; j++) {
                     let keyB = originalKeys[j];
                     if (mergedKeys.has(keyB)) continue;
                     while (consolidationMap[keyB]) keyB = consolidationMap[keyB];
                     if (mergedKeys.has(keyB) || keyA === keyB) continue;
+
                     const distance = levenshteinDistance(keyA, keyB);
-                    if (distance <= CONFIG.consolidationDistanceThreshold && distance > 0) {
+                    if (distance <= CONFIG.consolidationDistanceThreshold && distance > 0) { // distance > 0 ensures they are not identical already
                         let canonicalKey = keyA;
-                        let mergedKey = keyB;
-                        const keyAExists = allExistingGroupNames.has(keyA);
-                        const keyBExists = allExistingGroupNames.has(keyB);
-                        if (keyBExists && !keyAExists) [canonicalKey, mergedKey] = [keyB, keyA];
-                        else if (keyAExists == keyBExists) {
-                            if (keyA.length > keyB.length) [canonicalKey, mergedKey] = [keyB, keyA];
-                            else if (keyA.length === keyB.length && keyA > keyB) [canonicalKey, mergedKey] = [keyB, keyA];
+                        let mergedKeyVal = keyB;
+
+                        const keyAExistsAsActualGroup = allExistingGroupNames.has(keyA);
+                        const keyBExistsAsActualGroup = allExistingGroupNames.has(keyB);
+
+                        if (keyBExistsAsActualGroup && !keyAExistsAsActualGroup) {
+                            [canonicalKey, mergedKeyVal] = [keyB, keyA];
+                        } else if (keyAExistsAsActualGroup == keyBExistsAsActualGroup) { // Both exist or neither exist
+                            if (keyA.length > keyB.length) { // Prefer shorter name
+                                [canonicalKey, mergedKeyVal] = [keyB, keyA];
+                            } else if (keyA.length === keyB.length && keyA > keyB) { // Prefer lexicographically smaller if same length
+                                [canonicalKey, mergedKeyVal] = [keyB, keyA];
+                            }
                         }
-                        console.log(`    - Consolidating: Merging "${mergedKey}" into "${canonicalKey}" (Distance: ${distance})`);
-                        if (finalGroups[mergedKey]) {
+                        // If keyAExistsAsActualGroup and !keyBExistsAsActualGroup, canonicalKey is already keyA (preferred)
+
+                        console.log(`    - Consolidating: Merging "${mergedKeyVal}" into "${canonicalKey}" (Distance: ${distance})`);
+                        if (finalGroups[mergedKeyVal]) {
                             if (!finalGroups[canonicalKey]) finalGroups[canonicalKey] = [];
-                            finalGroups[mergedKey].forEach(t => {
-                                if (t?.isConnected && !finalGroups[canonicalKey].includes(t)) finalGroups[canonicalKey].push(t);
+                            finalGroups[mergedKeyVal].forEach(t => {
+                                if (t?.isConnected && !finalGroups[canonicalKey].includes(t)) {
+                                    finalGroups[canonicalKey].push(t);
+                                }
                             });
                         }
-                        mergedKeys.add(mergedKey);
-                        consolidationMap[mergedKey] = canonicalKey;
-                        delete finalGroups[mergedKey];
-                        if (mergedKey === keyA) {
+                        mergedKeys.add(mergedKeyVal);
+                        consolidationMap[mergedKeyVal] = canonicalKey; // Record the merge target
+                        delete finalGroups[mergedKeyVal];
+
+                        if (mergedKeyVal === keyA) { // If keyA was the one merged away, update keyA to canonical for current outer loop iteration
                             keyA = canonicalKey;
-                            break;
+                            break; // Re-evaluate keyA (now canonicalKey) against subsequent keys
                         }
                     }
                 }
@@ -1091,14 +1172,14 @@
             console.log(" -> Final groups for action:", Object.keys(finalGroups).map(k => `${k} (${finalGroups[k]?.length ?? 0})`).join('; ') || "None");
             if (Object.keys(finalGroups).length === 0) {
                 console.log("No valid groups identified after all steps. Sorting finished.");
-                return;
+                isSorting = false; return;
             }
 
             const existingGroupElementsMap = new Map();
             document.querySelectorAll(groupSelector).forEach(el => {
                 if (el.label) existingGroupElementsMap.set(el.label, el);
             });
-            groupColorIndex = 0;
+            groupColorIndex = 0; // Reset color index for new groups
 
             for (const topic in finalGroups) {
                 const tabsForThisTopic = finalGroups[topic].filter(t => t?.isConnected);
@@ -1106,7 +1187,9 @@
                     console.log(` -> Skipping group "${topic}" as no valid tabs remain.`);
                     continue;
                 }
-                const existingEl = existingGroupElementsMap.get(topic);
+
+                const existingEl = existingGroupElementsMap.get(topic) || findGroupElement(topic, currentWorkspaceId);
+
                 if (existingEl?.isConnected) {
                     console.log(` -> Moving ${tabsForThisTopic.length} tabs to existing group "${topic}".`);
                     if (existingEl.getAttribute("collapsed") === "true") {
@@ -1114,30 +1197,48 @@
                         existingEl.querySelector('.tab-group-label')?.setAttribute('aria-expanded', 'true');
                     }
                     for (const tab of tabsForThisTopic) {
-                        if (tab.closest('tab-group') !== existingEl) gBrowser.moveTabToGroup(tab, existingEl);
+                        // Only move if not already in this exact group element
+                        if (tab.closest('tab-group') !== existingEl) {
+                             gBrowser.moveTabToGroup(tab, existingEl);
+                        }
                     }
                 } else {
-                    const wasFromAI = aiTabTopics.some(ait => ait.topic === topic && tabsForThisTopic.includes(ait.tab));
-                    if (tabsForThisTopic.length >= CONFIG.preGroupingThreshold || wasFromAI) {
+                     // Determine if group creation is justified
+                    const wasFromAI = CONFIG.aiOnlyGrouping || aiTabTopics.some(ait => processTopic(ait.topic) === topic && tabsForThisTopic.includes(ait.tab));
+                    const meetsThreshold = tabsForThisTopic.length >= CONFIG.preGroupingThreshold;
+
+                    if (meetsThreshold || (wasFromAI && tabsForThisTopic.length > 0) ) { // Create if meets threshold, or if AI made it (even if small, for AI-Only mode)
                         console.log(` -> Creating new group "${topic}" with ${tabsForThisTopic.length} tabs.`);
                         const groupOpts = {
                             label: topic,
                             color: getNextGroupColor(),
-                            insertBefore: tabsForThisTopic[0]
+                            insertBefore: tabsForThisTopic[0] // Sensible default insertion point
                         };
                         try {
-                            const newGroup = gBrowser.addTabGroup(tabsForThisTopic, groupOpts);
-                            if (newGroup?.isConnected) existingGroupElementsMap.set(topic, newGroup);
-                            else {
-                                const fb = findGroupElement(topic, currentWorkspaceId);
-                                if (fb?.isConnected) existingGroupElementsMap.set(topic, fb);
-                                else console.error(` -> Failed to find/create group element for "${topic}".`);
+                            // Filter tabs that might already be in *some* group if moving them to a new one
+                            const tabsToActuallyGroup = tabsForThisTopic.filter(t => !t.closest('tab-group'));
+                            if (tabsToActuallyGroup.length === 0 && tabsForThisTopic.length > 0) { // All tabs are already in some groups, but not this one
+                                console.warn(` -> Group "${topic}" intended, but all its tabs are already in other groups. This might indicate a consolidation issue or complex state.`);
+                                // Potentially try to move them if that's desired, but for now, log and skip direct creation with these tabs.
+                                // This scenario should be rare if consolidation works well.
+                                continue;
+                            }
+                            if (tabsToActuallyGroup.length > 0) {
+                                const newGroup = gBrowser.addTabGroup(tabsToActuallyGroup, groupOpts);
+                                if (newGroup?.isConnected) existingGroupElementsMap.set(topic, newGroup);
+                                else {
+                                    const fb = findGroupElement(topic, currentWorkspaceId); // Retry find
+                                    if (fb?.isConnected) existingGroupElementsMap.set(topic, fb);
+                                    else console.error(` -> Failed to find/create group element for "${topic}" after creation attempt.`);
+                                }
+                            } else {
+                                console.log(` -> No ungrouped tabs available to form new group "${topic}".`);
                             }
                         } catch (e) {
                             console.error(`Error gBrowser.addTabGroup for "${topic}":`, e);
                         }
                     } else {
-                        console.log(` -> Skipping creation of small group "${topic}" (${tabsForThisTopic.length} tabs).`);
+                        console.log(` -> Skipping creation of small group "${topic}" (${tabsForThisTopic.length} tabs, not meeting threshold/AI criteria).`);
                     }
                 }
             }
@@ -1150,7 +1251,7 @@
                 if (sep?.isConnected) sep.classList.remove('separator-is-sorting');
             });
             setTimeout(() => {
-                Array.from(gBrowser.tabs).forEach(t => {
+                Array.from(gBrowser.tabs).forEach(t => { // Ensure gBrowser.tabs is an array
                     if (t?.isConnected) t.classList.remove('tab-is-sorting');
                 });
             }, 500);
@@ -1169,7 +1270,7 @@
             }
             const groupSelector = `tab-group:has(tab[zen-workspace-id="${currentWorkspaceId}"])`;
             const tabsToClose = [];
-            for (const tab of gBrowser.tabs) {
+            for (const tab of Array.from(gBrowser.tabs)) { // Ensure gBrowser.tabs is an array
                 const isSameWorkSpace = tab.getAttribute('zen-workspace-id') === currentWorkspaceId;
                 const groupParent = tab.closest('tab-group');
                 const isInGroupInCorrectWorkspace = groupParent ? groupParent.matches(groupSelector) : false;
@@ -1196,7 +1297,7 @@
                             });
                         } catch (removeError) {
                             console.warn(`CLEAR BTN: Error removing tab: ${removeError}`, tab);
-                            tab.classList.remove('tab-closing');
+                            if(tab?.isConnected) tab.classList.remove('tab-closing'); // Remove class if still connected after error
                         }
                     }
                 }, 500);
@@ -1280,13 +1381,17 @@
             console.warn("BUTTONS: gZenWorkspaces not found. Skipping hooks.");
             return;
         }
-        if (typeof gZenWorkspaces.originalHooks !== 'undefined') return;
+        if (typeof gZenWorkspaces.originalHooks !== 'undefined' && gZenWorkspaces.originalHooks.customSortClearApplied) return; // Check if already applied
+
         gZenWorkspaces.originalHooks = {
+            ...(gZenWorkspaces.originalHooks || {}), // Preserve other hooks if any
             onTabBrowserInserted: gZenWorkspaces.onTabBrowserInserted,
-            updateTabsContainers: gZenWorkspaces.updateTabsContainers
+            updateTabsContainers: gZenWorkspaces.updateTabsContainers,
+            customSortClearApplied: true // Mark as applied
         };
+
         gZenWorkspaces.onTabBrowserInserted = function (event) {
-            if (typeof gZenWorkspaces.originalHooks.onTabBrowserInserted === 'function') {
+            if (typeof gZenWorkspaces.originalHooks.onTabBrowserInserted === 'function' && gZenWorkspaces.originalHooks.onTabBrowserInserted !== gZenWorkspaces.onTabBrowserInserted) { // Avoid recursion
                 try {
                     gZenWorkspaces.originalHooks.onTabBrowserInserted.call(gZenWorkspaces, event);
                 } catch (e) {
@@ -1296,7 +1401,7 @@
             setTimeout(addButtonsToAllSeparators, 150);
         };
         gZenWorkspaces.updateTabsContainers = function (...args) {
-            if (typeof gZenWorkspaces.originalHooks.updateTabsContainers === 'function') {
+            if (typeof gZenWorkspaces.originalHooks.updateTabsContainers === 'function' && gZenWorkspaces.originalHooks.updateTabsContainers !== gZenWorkspaces.updateTabsContainers) { // Avoid recursion
                 try {
                     gZenWorkspaces.originalHooks.updateTabsContainers.apply(gZenWorkspaces, args);
                 } catch (e) {
@@ -1305,12 +1410,12 @@
             }
             setTimeout(addButtonsToAllSeparators, 150);
         };
-        console.log("BUTTONS HOOK: gZenWorkspaces hooks applied.");
+        console.log("BUTTONS HOOK: gZenWorkspaces hooks applied for Sort & Clear.");
     }
 
     // --- Initial Setup Trigger ---
     function initializeScript() {
-        console.log("INIT: Sort & Clear Tabs Script (v4.11.1 - Refined) loading...");
+        console.log("INIT: Sort & Clear Tabs Script (v5.1.0) loading...");
         let checkCount = 0;
         const maxChecks = 30;
         const checkInterval = 1000;
@@ -1320,7 +1425,7 @@
             const periphExists = !!document.querySelector('#tabbrowser-arrowscrollbox-periphery');
             const cmdSetExists = !!document.querySelector("commandset#zenCommandSet");
             const gBReady = typeof gBrowser !== 'undefined' && gBrowser.tabContainer;
-            const gZWReady = typeof gZenWorkspaces !== 'undefined' && typeof gZenWorkspaces.activeWorkspace !== 'undefined';
+            const gZWReady = typeof gZenWorkspaces !== 'undefined' && typeof gZenWorkspaces.activeWorkspace !== 'undefined'; // Check for activeWorkspace
             const ready = gBReady && cmdSetExists && (sepExists || periphExists) && gZWReady;
 
             if (ready) {
@@ -1330,16 +1435,14 @@
                     try {
                         injectStyles();
                         setupCommandsAndListener();
-                        addButtonsToAllSeparators();
-                        setupZenWorkspaceHooks();
+                        addButtonsToAllSeparators(); // Initial call
+                        setupZenWorkspaceHooks();   // Setup hooks that will also call addButtons
                         console.log("INIT: Sort & Clear Button setup and hooks complete.");
                     } catch (e) {
                         console.error("INIT: Error during deferred final setup:", e);
                     }
                 };
-                if ('requestIdleCallback' in window) requestIdleCallback(finalSetup, {
-                    timeout: 2000
-                });
+                if ('requestIdleCallback' in window) requestIdleCallback(finalSetup, { timeout: 2000 });
                 else setTimeout(finalSetup, 500);
             } else if (checkCount > maxChecks) {
                 clearInterval(initCheckInterval);

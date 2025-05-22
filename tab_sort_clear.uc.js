@@ -38,7 +38,7 @@
             },
             gemini: {
                 enabled: true,
-                apiKey: 'AIzaSyBPioQ8HxwzNdb76Gg2n92ptXdtBrHYdrY', // <<<--- PASTE YOUR KEY HERE --- >>>
+                apiKey: 'YOUR_GEMINI_API_KEY', // <<<--- PASTE YOUR KEY HERE --- >>>
                 model: 'gemini-1.5-flash-latest',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
                 promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description, ContentTypeHint) and assign a concise category (1-2 words, Title Case) for EACH tab.

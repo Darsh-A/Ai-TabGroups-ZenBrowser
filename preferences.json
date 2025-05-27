@@ -18,14 +18,6 @@
     ]
   },
   {
-    "type": "separator",
-    "property": "extensions.tabgroups.ai_model",
-    "label": "Gemini",
-    "conditions": [
-      { "if": { "property": "extensions.tabgroups.ai_model", "value": 1 } }
-    ]
-  },
-  {
     "property": "extensions.tabgroups.gemini_api_key",
     "label": "Gemini API Key",
     "type": "string",
@@ -42,14 +34,6 @@
     "placeholder": "Enter your Gemini Model here",
     "conditions": [
       { "if": { "property": "extensions.tabgroups.ai_model", "value": 1 } }
-    ]
-  },
-  {
-    "type": "separator",
-    "property": "extensions.tabgroups.ai_model",
-    "label": "Ollama",
-    "conditions": [
-      { "if": { "property": "extensions.tabgroups.ai_model", "value": 2 } }
     ]
   },
   {

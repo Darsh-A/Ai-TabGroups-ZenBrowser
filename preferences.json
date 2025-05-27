@@ -19,6 +19,7 @@
   },
   {
     "type": "separator",
+    "property": "extensions.tabgroups.ai_model",
     "label": "Gemini",
     "conditions": [
       { "if": { "property": "extensions.tabgroups.ai_model", "value": 1 } }
@@ -45,6 +46,7 @@
   },
   {
     "type": "separator",
+    "property": "extensions.tabgroups.ai_model",
     "label": "Ollama",
     "conditions": [
       { "if": { "property": "extensions.tabgroups.ai_model", "value": 2 } }

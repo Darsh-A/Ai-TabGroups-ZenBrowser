@@ -51,7 +51,7 @@
             },
             gemini: {
                 enabled: true,
-                apiKey: 'AIzaSyABAgIQdYGwZsC0wqI5MEBZYHl4EKuvQjY', // <<<--- PASTE YOUR KEY HERE --- >>>
+                apiKey: '', // <<<--- PASTE YOUR KEY HERE --- >>>
                 model: 'gemini-1.5-flash-latest',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
                 generationConfig: {

@@ -5,10 +5,10 @@
         // --- Logging Control ---
         logging: {
             enabled: true,
-            level: 'debug', // 'debug', 'info', 'warn', 'error', 'none'
+            level: 'warn', // 'debug', 'info', 'warn', 'error', 'none'
             showDetailedScoring: false, // Show individual scorer details
-            showWeightChanges: true, // Show dynamic weight adjustments
-            showGroupingResults: true // Show final grouping results
+            showWeightChanges: false, // Show dynamic weight adjustments
+            showGroupingResults: false // Show final grouping results
         },
 
         aiOnlyGrouping: false, // << --- Set to true to let AI handle all grouping logic
@@ -19,6 +19,7 @@
         autoSortNewTabs: {
             enabled: true, // << --- Set to false to disable auto-sorting
             delay: 1000, // Wait 1 second after tab creation before sorting
+            maxTabsToSort: 10, // Maximum number of tabs to consider for auto-sort mode
         },
         
         // Auto-sort when selected tab URL changes
@@ -414,7 +415,6 @@
     let groupColorIndex = 0;
     let isSorting = false;
     let commandListenerAdded = false;
-    let tabDataCache = new Map();
     
         // --- Tab Creation & URL Change Tracking ---
     const TabCreationTracker = {
@@ -444,14 +444,10 @@
                 return;
             }
             
-            Logger.info('Setting up tab creation listeners...');
-            
             // Listen for new tab creation
             gBrowser.addEventListener('TabOpen', (event) => {
                 const tab = event.target;
                 const now = Date.now();
-                
-                Logger.info(`📅 Tab ${tab.id} created at ${new Date(now).toLocaleTimeString()}`);
                 
                 this.tabCreationTimes.set(tab.id, now);
                 
@@ -461,15 +457,11 @@
                         openerId: tab.openerTab.id,
                         creationTime: now
                     });
-                    Logger.info(`📅 Tab ${tab.id} has opener tab ${tab.openerTab.id}`);
                 }
                 
                 // Trigger auto-sort if enabled
                 if (CONFIG.autoSortNewTabs.enabled) {
-                    Logger.info(`🤖 Auto-sort: Enabled, scheduling auto-sort for tab ${tab.id}`);
                     this.scheduleAutoSort(tab);
-                } else {
-                    Logger.info(`🤖 Auto-sort: Disabled, skipping auto-sort for tab ${tab.id}`);
                 }
             });
             
@@ -500,8 +492,6 @@
                     this.currentSelectedTabURL = null;
                 }
             });
-            
-            Logger.info('Tab creation listeners set up successfully');
         },
         
         setupAlternativeListeners() {
@@ -512,12 +502,9 @@
                     return;
                 }
                 
-                Logger.info('Setting up alternative tab listeners...');
-                
                 // Listen to tab container for new tabs
                 gBrowser.tabContainer.addEventListener('TabOpen', (event) => {
                     const tab = event.target;
-                    Logger.info(`📅 Alternative listener: Tab ${tab.id} created`);
                     
                     // Only schedule if not already scheduled
                     if (!this.pendingAutoSorts.has(tab.id)) {
@@ -530,7 +517,6 @@
                 // Also try listening to the window
                 window.addEventListener('TabOpen', (event) => {
                     const tab = event.target;
-                    Logger.info(`📅 Window listener: Tab ${tab.id} created`);
                     
                     // Only schedule if not already scheduled
                     if (!this.pendingAutoSorts.has(tab.id)) {
@@ -539,8 +525,6 @@
                         }
                     }
                 });
-                
-                Logger.info('Alternative tab listeners set up successfully');
             };
             
             setupAltListeners();
@@ -554,14 +538,11 @@
                 return;
             }
             
-            Logger.info('Setting up URL change listeners...');
-            
             // Listen for tab selection changes via tabContainer (this one works)
             if (gBrowser.tabContainer) {
                 gBrowser.tabContainer.addEventListener('TabSelect', (event) => {
                     const newSelectedTab = event.target;
                     if (newSelectedTab !== this.currentSelectedTab) {
-                        Logger.info(`🌐 Tab selection changed: ${this.currentSelectedTab?.id || 'none'} → ${newSelectedTab.id}`);
                         this.updateSelectedTab(newSelectedTab);
                     }
                 });
@@ -572,13 +553,9 @@
             
             // Initialize with current selected tab
             this.initializeCurrentSelectedTab();
-            
-            Logger.info('URL change listeners set up successfully');
         },
         
         updateSelectedTab(newSelectedTab) {
-            Logger.info(`🌐 Updating selected tab: ${this.currentSelectedTab?.id || 'none'} → ${newSelectedTab.id}`);
-            
             // Update current selected tab
             this.currentSelectedTab = newSelectedTab;
             
@@ -587,8 +564,6 @@
             
             // Setup URL change monitoring for the new selected tab
             this.setupURLChangeMonitoring(newSelectedTab);
-            
-            Logger.info(`🌐 Selected tab updated successfully: ${newSelectedTab.id} with URL: ${this.currentSelectedTabURL || 'loading...'}`);
         },
         
         // Manually update the current URL (for testing and fixing sync issues)
@@ -596,12 +571,10 @@
             if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
                 const newURL = this.getTabURL(this.currentSelectedTab);
                 if (newURL && newURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
-                    Logger.info(`🌐 Manual URL update: ${this.currentSelectedTabURL || 'none'} → ${newURL}`);
                     this.currentSelectedTabURL = newURL;
                     this.scheduleAutoSortForURLChange(this.currentSelectedTab);
                 } else if (newURL && !this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
                     // Initial URL set
-                    Logger.info(`🌐 Initial URL set: ${newURL}`);
                     this.currentSelectedTabURL = newURL;
                 }
             }
@@ -618,7 +591,6 @@
                 
                 const currentSelectedTabId = gBrowser.selectedTab.id;
                 if (currentSelectedTabId !== lastSelectedTabId) {
-                    Logger.info(`🌐 Polling detected tab selection change: ${lastSelectedTabId || 'none'} → ${currentSelectedTabId}`);
                     this.updateSelectedTab(gBrowser.selectedTab);
                     lastSelectedTabId = currentSelectedTabId;
                 }
@@ -639,14 +611,12 @@
             
             // Poll every 1 second (less frequent)
             setInterval(pollForTabSelection, 1000);
-            Logger.info('🌐 Tab selection polling started');
         },
         
         checkForURLChanges() {
             if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
                 const currentURL = this.getTabURL(this.currentSelectedTab);
                 if (currentURL && currentURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(currentURL)) {
-                    Logger.info(`🌐 Polling detected URL change: ${this.currentSelectedTabURL || 'none'} → ${currentURL}`);
                     this.currentSelectedTabURL = currentURL;
                     this.scheduleAutoSortForURLChange(this.currentSelectedTab);
                 }
@@ -660,19 +630,16 @@
             // Method 1: gBrowser.selectedTab
             if (gBrowser.selectedTab) {
                 selectedTab = gBrowser.selectedTab;
-                Logger.info(`🌐 Found selected tab via gBrowser.selectedTab: ${selectedTab.id}`);
             }
             // Method 2: gBrowser.selectedTabIndex
             else if (gBrowser.selectedTabIndex !== undefined && gBrowser.tabs[gBrowser.selectedTabIndex]) {
                 selectedTab = gBrowser.tabs[gBrowser.selectedTabIndex];
-                Logger.info(`🌐 Found selected tab via gBrowser.selectedTabIndex: ${selectedTab.id}`);
             }
             // Method 3: Look for selected attribute
             else {
                 const selectedTabElement = document.querySelector('tab[selected="true"]');
                 if (selectedTabElement) {
                     selectedTab = selectedTabElement;
-                    Logger.info(`🌐 Found selected tab via selected attribute: ${selectedTab.id}`);
                 }
             }
             
@@ -680,57 +647,44 @@
                 this.currentSelectedTab = selectedTab;
                 this.currentSelectedTabURL = this.getTabURL(selectedTab);
                 this.setupURLChangeMonitoring(selectedTab);
-                Logger.info(`🌐 Initialized current selected tab: ${selectedTab.id} with URL: ${this.currentSelectedTabURL || 'none'}`);
             } else {
-                Logger.warn('🌐 Could not find current selected tab during initialization');
+                Logger.warn('Could not find current selected tab during initialization');
             }
         },
         
         setupURLChangeMonitoring(tab) {
             if (!tab || !tab.isConnected) {
-                Logger.warn(`🌐 Cannot setup URL monitoring: tab not connected or invalid`);
+                Logger.warn(`Cannot setup URL monitoring: tab not connected or invalid`);
                 return;
             }
             
             const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
             if (!browser) {
-                Logger.warn(`🌐 Cannot setup URL monitoring: no browser for tab ${tab.id}`);
+                Logger.warn(`Cannot setup URL monitoring: no browser for tab ${tab.id}`);
                 return;
             }
-            
-            Logger.info(`🌐 Setting up URL change monitoring for tab ${tab.id}`);
             
             // Remove any existing listeners to avoid duplicates
             if (browser._urlChangeListener) {
                 browser.removeEventListener('load', browser._urlChangeListener);
-                Logger.debug(`🌐 Removed existing URL change listener for tab ${tab.id}`);
             }
             
             // Create new listener for page loads
             const urlChangeListener = () => {
-                Logger.info(`🌐 Load event fired for tab ${tab.id}`);
                 const newURL = this.getTabURL(tab);
-                Logger.info(`🌐 New URL for tab ${tab.id}: ${newURL}`);
-                Logger.info(`🌐 Current selected tab URL: ${this.currentSelectedTabURL}`);
                 
                 if (newURL && newURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
-                    Logger.info(`🌐 URL changed for selected tab ${tab.id}: ${this.currentSelectedTabURL || 'none'} → ${newURL}`);
                     this.currentSelectedTabURL = newURL;
                     this.scheduleAutoSortForURLChange(tab);
                 } else if (newURL && (!this.currentSelectedTabURL || this.currentSelectedTabURL === 'none') && this.isValidURLForAutoSort(newURL)) {
                     // Initial page load with valid URL
-                    Logger.info(`🌐 Initial page load for selected tab ${tab.id}: ${newURL}`);
                     this.currentSelectedTabURL = newURL;
-                } else {
-                    Logger.info(`🌐 URL change not significant or invalid for auto-sort`);
                 }
             };
             
             // Store reference and add listener
             browser._urlChangeListener = urlChangeListener;
             browser.addEventListener('load', urlChangeListener);
-            
-            Logger.info(`🌐 URL change monitoring setup complete for tab ${tab.id}`);
         },
         
         // Ensure URL monitoring is active on the current selected tab
@@ -740,7 +694,6 @@
                 
                 // Only setup monitoring if it's not already set up
                 if (browser && !browser._urlChangeListener) {
-                    Logger.debug(`🌐 Ensuring URL monitoring is active on current selected tab ${this.currentSelectedTab.id}`);
                     this.setupURLChangeMonitoring(this.currentSelectedTab);
                 }
             }
@@ -752,15 +705,12 @@
             try {
                 const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
                 if (!browser || !browser.currentURI) {
-                    Logger.debug(`No browser or currentURI for tab ${tab.id}`);
                     return null;
                 }
                 
                 const url = browser.currentURI.spec;
-                Logger.debug(`Got URL for tab ${tab.id}: ${url}`);
                 return url && url !== 'about:blank' ? url : null;
             } catch (e) {
-                Logger.debug(`Error getting URL for tab ${tab.id}:`, e);
                 return null;
             }
         },
@@ -785,7 +735,6 @@
         
         scheduleAutoSortForURLChange(tab) {
             if (!CONFIG.autoSortOnURLChange.enabled) {
-                Logger.debug(`🌐 URL change auto-sort disabled, skipping for tab ${tab.id}`);
                 return;
             }
             
@@ -794,7 +743,6 @@
             const timeSinceLastSort = Date.now() - lastSortTime;
             
             if (timeSinceLastSort < CONFIG.autoSortOnURLChange.debounceTime) {
-                Logger.debug(`🌐 Debouncing URL change auto-sort for tab ${tab.id} (${timeSinceLastSort}ms < ${CONFIG.autoSortOnURLChange.debounceTime}ms)`);
                 return;
             }
             
@@ -804,10 +752,7 @@
                 clearTimeout(existingTimeout);
             }
             
-            Logger.info(`🌐 Scheduling URL change auto-sort for tab ${tab.id} in ${CONFIG.autoSortOnURLChange.delay}ms`);
-            
             const timeoutId = setTimeout(() => {
-                Logger.info(`🌐 URL change auto-sort timeout fired for tab ${tab.id}`);
                 this.performAutoSortForURLChange(tab);
                 this.pendingURLChangeSorts.delete(tab.id);
             }, CONFIG.autoSortOnURLChange.delay);
@@ -816,24 +761,17 @@
         },
         
         async performAutoSortForURLChange(tab) {
-            Logger.info(`🌐 URL change auto-sort: Starting auto-sort for tab ${tab.id}`);
-            
             if (!tab.isConnected) {
-                Logger.warn(`❌ Tab ${tab.id} no longer connected, skipping URL change auto-sort`);
+                Logger.warn(`Tab ${tab.id} no longer connected, skipping URL change auto-sort`);
                 return;
             }
             
             const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
-            Logger.info(`🌐 URL change auto-sort: Current workspace ID: ${currentWorkspaceId}`);
             
             if (!WorkspaceUtils.validateWorkspace(currentWorkspaceId)) {
-                Logger.warn(`❌ Invalid workspace, skipping URL change auto-sort`);
+                Logger.warn(`Invalid workspace, skipping URL change auto-sort`);
                 return;
             }
-            
-            // Check if the tab is already in a group (for logging only)
-            const isInGroup = tab.closest('tab-group') !== null;
-            Logger.info(`🌐 URL change auto-sort: Tab ${tab.id} is ${isInGroup ? 'already grouped' : 'ungrouped'}`);
             
             // Always perform auto-sort for URL changes, regardless of grouping status
             // This allows tabs to be re-sorted when their content changes
@@ -846,10 +784,8 @@
                 // Update last auto-sort time
                 this.lastAutoSortTime.set(tab.id, Date.now());
                 
-                Logger.info(`🌐 URL change auto-sort: Starting sorting process for URL-changed tab...`);
                 // Use the existing sorting logic with auto-sort flag
                 await sortTabsByTopic(true, tab);
-                Logger.info(`🌐 URL change auto-sort: Sorting process completed`);
                 
                 // Remove visual indicator
                 setTimeout(() => {
@@ -869,16 +805,12 @@
         },
         
         scheduleAutoSort(tab) {
-            Logger.info(`🤖 Auto-sort: Tab ${tab.id} created, scheduling auto-sort in ${CONFIG.autoSortNewTabs.delay}ms`);
-            
             const timeoutId = setTimeout(() => {
-                Logger.info(`🤖 Auto-sort: Timeout fired for tab ${tab.id}, performing auto-sort`);
                 this.performAutoSort(tab);
                 this.pendingAutoSorts.delete(tab.id);
             }, CONFIG.autoSortNewTabs.delay);
             
             this.pendingAutoSorts.set(tab.id, timeoutId);
-            Logger.debug(`⏰ Scheduled auto-sort for tab ${tab.id} in ${CONFIG.autoSortNewTabs.delay}ms`);
         },
         
         async performAutoSort(newTab) {
@@ -929,25 +861,6 @@
             }
         },
         
-        checkUserActivity(tab) {
-            // Check if tab has been loaded and user has interacted
-            const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
-            if (!browser) return false;
-            
-            // Check if tab has loaded content
-            const hasLoaded = browser.currentURI && 
-                             !browser.currentURI.spec.startsWith('about:') &&
-                             browser.currentURI.spec !== 'about:blank';
-            
-            // For auto-sort, we're more lenient - just need the page to be loaded
-            return hasLoaded;
-        },
-        
-        getTabAge(tabId) {
-            const creationTime = this.tabCreationTimes.get(tabId);
-            return creationTime ? Date.now() - creationTime : null;
-        },
-        
         getOpenerRelationshipAge(tabId) {
             const relationship = this.openerRelationships.get(tabId);
             return relationship ? Date.now() - relationship.creationTime : null;
@@ -957,110 +870,7 @@
             const age = this.getOpenerRelationshipAge(tabId);
             return age && age < CONFIG.dynamicWeights.openerTimeTracking.recentThreshold;
         },
-        
 
-        
-        // Test function to manually trigger auto-sort
-        testAutoSort() {
-            Logger.info(`🧪 Testing auto-sort system...`);
-            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
-            Logger.info(`🧪 Current workspace: ${currentWorkspaceId}`);
-            
-            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
-            Logger.info(`🧪 Ungrouped tabs: ${ungroupedTabs.length}`);
-            
-            if (ungroupedTabs.length > 0) {
-                Logger.info(`🧪 Triggering manual auto-sort for ${ungroupedTabs.length} tabs`);
-                this.performAutoSort(ungroupedTabs[0]);
-            } else {
-                Logger.info(`🧪 No ungrouped tabs to sort`);
-            }
-        },
-        
-        // Test function to check if listeners are working
-        testListeners() {
-            Logger.info(`🧪 Testing tab creation listeners...`);
-            Logger.info(`🧪 gBrowser available: ${!!gBrowser}`);
-            Logger.info(`🧪 gBrowser.tabContainer available: ${!!(gBrowser && gBrowser.tabContainer)}`);
-            Logger.info(`🧪 Pending auto-sorts: ${this.pendingAutoSorts.size}`);
-            Logger.info(`🧪 Tracked tab creation times: ${this.tabCreationTimes.size}`);
-            
-            // Try to manually trigger a TabOpen event for testing
-            if (gBrowser && gBrowser.tabs.length > 0) {
-                const testTab = gBrowser.tabs[0];
-                Logger.info(`🧪 Simulating TabOpen event for tab ${testTab.id}`);
-                
-                // Create a synthetic event
-                const event = new CustomEvent('TabOpen', {
-                    detail: { tab: testTab },
-                    bubbles: true
-                });
-                
-                gBrowser.dispatchEvent(event);
-                gBrowser.tabContainer.dispatchEvent(event);
-                window.dispatchEvent(event);
-                
-                Logger.info(`🧪 Synthetic events dispatched`);
-            }
-        },
-        
-        // Test function to check URL change tracking
-        testURLChangeTracking() {
-            Logger.info(`🧪 Testing URL change tracking...`);
-            Logger.info(`🧪 Current selected tab: ${this.currentSelectedTab ? `ID: ${this.currentSelectedTab.id || 'unknown'}` : 'none'}`);
-            Logger.info(`🧪 Current selected tab URL: ${this.currentSelectedTabURL || 'none'}`);
-            Logger.info(`🧪 URL change auto-sort enabled: ${CONFIG.autoSortOnURLChange.enabled}`);
-            Logger.info(`🧪 Pending URL change sorts: ${this.pendingURLChangeSorts.size}`);
-            Logger.info(`🧪 Last auto-sort times tracked: ${this.lastAutoSortTime.size}`);
-            
-            // Try to re-initialize if no current selected tab
-            if (!this.currentSelectedTab) {
-                Logger.info(`🧪 No current selected tab found, attempting to re-initialize...`);
-                this.initializeCurrentSelectedTab();
-            }
-            
-            if (this.currentSelectedTab) {
-                const currentURL = this.getTabURL(this.currentSelectedTab);
-                Logger.info(`🧪 Current tab URL: ${currentURL || 'none'}`);
-                Logger.info(`🧪 Is valid URL for auto-sort: ${this.isValidURLForAutoSort(currentURL)}`);
-                
-                // Additional debugging info
-                const browser = this.currentSelectedTab.linkedBrowser || this.currentSelectedTab._linkedBrowser || gBrowser?.getBrowserForTab?.(this.currentSelectedTab);
-                Logger.info(`🧪 Tab browser available: ${!!browser}`);
-                Logger.info(`🧪 Tab browser currentURI: ${browser?.currentURI?.spec || 'none'}`);
-                Logger.info(`🧪 Tab is connected: ${this.currentSelectedTab.isConnected}`);
-                Logger.info(`🧪 Tab has URL change listener: ${!!browser?._urlChangeListener}`);
-                Logger.info(`🧪 Tab has location change listener: ${!!browser?._locationChangeListener}`);
-                
-                // Check if tab is grouped
-                const isInGroup = this.currentSelectedTab.closest('tab-group') !== null;
-                Logger.info(`🧪 Tab is in group: ${isInGroup}`);
-                
-                // Test manual URL change detection
-                Logger.info(`🧪 Testing manual URL change detection...`);
-                const testURL = this.getTabURL(this.currentSelectedTab);
-                Logger.info(`🧪 Manual URL check: ${testURL}`);
-                if (testURL && testURL !== this.currentSelectedTabURL) {
-                    Logger.info(`🧪 URL difference detected! Current: ${this.currentSelectedTabURL}, Manual: ${testURL}`);
-                }
-            } else {
-                Logger.warn(`🧪 Still no current selected tab found after re-initialization`);
-            }
-        },
-        
-        // Test function to manually trigger URL change auto-sort
-        testURLChangeAutoSort() {
-            Logger.info(`🧪 Testing URL change auto-sort...`);
-            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
-            Logger.info(`🧪 Current workspace: ${currentWorkspaceId}`);
-            
-            if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
-                Logger.info(`🧪 Triggering manual URL change auto-sort for selected tab ${this.currentSelectedTab.id}`);
-                this.performAutoSortForURLChange(this.currentSelectedTab);
-            } else {
-                Logger.info(`🧪 No selected tab available for URL change auto-sort`);
-            }
-        }
     };
     
     // --- User Behavior & Content Analysis ---
@@ -1266,13 +1076,8 @@
         }
 
         generateProposals(context) {
-            Logger.debug("--- Generating Score Proposals ---");
             this.enrichedTabs.forEach(et => {
                 const proposals = [];
-                
-                if (CONFIG.logging.showDetailedScoring) {
-                    Logger.debug(`📊 Analyzing tab: "${et.data.title}" (${et.data.hostname})`);
-                }
                 
                 this.scorers.forEach(scorer => {
                     const scorerProposals = scorer.propose(et, this.enrichedTabs, this.existingGroups);
@@ -1288,18 +1093,11 @@
                             source: 'AI'
                         };
                         proposals.push(aiProposal);
-                        
-                        if (CONFIG.logging.showDetailedScoring) {
-                            Logger.debug(`  AI Suggestion: "${aiTopic}" (score: ${aiProposal.score.toFixed(3)})`);
-                        }
                     }
                 }
                 
                 if (proposals.length > 0) {
                     proposals.sort((a, b) => b.score - a.score);
-                    if (CONFIG.logging.showDetailedScoring) {
-                        Logger.debug(`  🏆 Best proposal: "${proposals[0].groupName}" (score: ${proposals[0].score.toFixed(3)})`);
-                    }
                 }
                 
                 this.tabProposals.set(et.tab, proposals);
@@ -1307,7 +1105,6 @@
         }
         
         resolveGroupAssignments() {
-            Logger.debug("--- Resolving Group Assignments (First Pass) ---");
             const provisionalGroups = new Map();
             
             // Assign every tab to its best possible group provisionally
@@ -1350,8 +1147,6 @@
                     leftoverTabs.push(et);
                 }
             });
-
-            Logger.info(`First Pass Results: ${finalGroups.size} groups formed, ${leftoverTabs.length} tabs remaining for AI cleanup.`);
             
             const finalGroupsObject = {};
             for (const [name, tabs] of finalGroups) {
@@ -1381,15 +1176,9 @@
                         const isRecent = TabCreationTracker.isRecentOpener(tab.tab.id);
                         if (isRecent) {
                             score += CONFIG.dynamicWeights.openerTimeTracking.recentOpenerBoost;
-                            if (CONFIG.logging.showDetailedScoring) {
-                                Logger.debug(`    ⏰ Recent opener boost applied (+${CONFIG.dynamicWeights.openerTimeTracking.recentOpenerBoost})`);
-                            }
                         }
                     }
                     
-                    if (CONFIG.logging.showDetailedScoring) {
-                        Logger.debug(`    🔗 OpenerScorer: Found opener tab "${openerEnrichedTab.data.title}" → group "${groupName}" (score: ${score.toFixed(3)})`);
-                    }
                     return [{ groupName, score, source: 'Opener' }];
                 }
             }
@@ -1405,9 +1194,6 @@
         propose(tab, allTabs, existingGroups) {
             if (tab.contentType) {
                 const score = this.weights.contentType;
-                if (CONFIG.logging.showDetailedScoring) {
-                    Logger.debug(`    📄 ContentTypeScorer: Detected content type "${tab.contentType}" (score: ${score.toFixed(3)})`);
-                }
                 return [{ groupName: tab.contentType, score, source: 'Content-Type' }];
             }
             return [];
@@ -1423,10 +1209,6 @@
             if (tab.data.hostname && tab.data.hostname !== 'N/A') {
                 const groupName = processTopic(tab.data.hostname);
                 const score = this.weights.hostname;
-                
-                if (CONFIG.logging.showDetailedScoring) {
-                    Logger.debug(`    🌐 HostnameScorer: Hostname "${tab.data.hostname}" → group "${groupName}" (score: ${score.toFixed(3)})`);
-                }
                 
                 return [{ groupName, score, source: 'Hostname' }];
             }
@@ -1444,10 +1226,6 @@
             if (tab.keywords && tab.keywords.size > 0) {
                 const score = this.weights.keyword;
                 
-                if (CONFIG.logging.showDetailedScoring) {
-                    Logger.debug(`    🔍 KeywordScorer: Found ${tab.keywords.size} keywords: [${Array.from(tab.keywords).join(', ')}] (score: ${score.toFixed(3)})`);
-                }
-                
                 tab.keywords.forEach(kw => {
                     const groupName = processTopic(kw);
                     proposals.push({
@@ -1455,10 +1233,6 @@
                         score,
                         source: 'Keyword'
                     });
-                    
-                    if (CONFIG.logging.showDetailedScoring) {
-                        Logger.debug(`      → Keyword "${kw}" → group "${groupName}"`);
-                    }
                 });
             }
             return proposals;
@@ -1475,10 +1249,6 @@
             if (!existingGroups || existingGroups.size === 0) {
                 return [];
             }
-
-            if (CONFIG.logging.showDetailedScoring) {
-                Logger.debug(`    🏷️  ExistingGroupScorer: Checking against ${existingGroups.size} existing groups`);
-            }
             
             for (const [groupName, groupData] of existingGroups) {
                 const similarity = this.calculateSimilarityToGroup(tab, groupData);
@@ -1489,10 +1259,6 @@
                         score,
                         source: 'Existing Group'
                     });
-                    
-                    if (CONFIG.logging.showDetailedScoring) {
-                        Logger.debug(`      → Group "${groupName}": similarity = ${similarity.toFixed(3)}, score = ${score.toFixed(3)}`);
-                    }
                 }
             }
             return proposals;
@@ -1553,10 +1319,6 @@
                 finalWeights.aiSuggestion *= 1.15; // AI better at leisure categorization
                 finalWeights.keyword *= 1.10;      // Keywords matter more for leisure
             }
-            
-            if (CONFIG.logging.showWeightChanges) {
-                Logger.info(`  🎭 Work Pattern: ${behavior.workPattern}`);
-            }
         }
         
         // Apply content complexity adjustments (average across all tabs)
@@ -1577,17 +1339,6 @@
         Object.keys(finalWeights).forEach(key => {
             finalWeights[key] *= avgAdjustment[key];
         });
-        
-        if (CONFIG.logging.showWeightChanges) {
-            Logger.info(`🎯 Dynamic Weights Applied:`);
-            Logger.info(`  Size Profile: ${getSizeProfileName(enrichedTabs.length)} (${enrichedTabs.length} tabs)`);
-            Object.entries(finalWeights).forEach(([key, value]) => {
-                const original = CONFIG.scoringWeights[key];
-                const change = value - original;
-                const changeStr = change > 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
-                Logger.info(`  ${key}: ${original.toFixed(2)} → ${value.toFixed(2)} (${changeStr})`);
-            });
-        }
         
         return finalWeights;
     };
@@ -1732,7 +1483,6 @@
             });
         });
         
-        Logger.debug(`Found ${existingGroups.size} existing groups with analysis.`);
         return existingGroups;
     };
 
@@ -1915,7 +1665,7 @@
         const lines = aiText.split('\n').map(line => line.trim()).filter(Boolean);
 
         if (lines.length !== validTabsWithData.length) {
-            Logger.warn(`Batch AI (${apiName}): Mismatch! Expected ${validTabsWithData.length}, received ${lines.length}. This may be due to API safety filters.`);
+            Logger.warn(`AI (${apiName}): Response mismatch. Expected ${validTabsWithData.length}, received ${lines.length}.`);
             lines.forEach((line, i) => {
                 if (i < validTabsWithData.length) {
                     const tab = validTabsWithData[i].tab;
@@ -2055,7 +1805,7 @@
                 throw new Error("No AI API is enabled in the configuration.");
             }
         } catch (error) {
-            Logger.error(`Batch AI (${apiChoice}): Error getting topics:`, error);
+            Logger.error(`AI (${apiChoice}): Error getting topics:`, error);
             const fallbackResults = new Map();
             validTabsWithData.forEach(item => fallbackResults.set(item.tab, "Uncategorized"));
             return fallbackResults;
@@ -2071,15 +1821,11 @@
     // --- MAIN SORTING FUNCTION ---
     const sortTabsByTopic = async (isAutoSortForNewTab = false, newTab = null) => {
         if (isSorting) {
-            Logger.info("Sorting already in progress.");
             return;
         }
         isSorting = true;
-        tabDataCache.clear();
         const selectedTabs = gBrowser.selectedTabs;
         const isSortingSelectedTabs = selectedTabs.length > 1;
-        const actionType = isAutoSortForNewTab ? "auto-sort for new tab" : (isSortingSelectedTabs ? "selected tabs" : "all ungrouped tabs");
-        Logger.info(`\n🚀 === STARTING WEIGHT-BASED TAB SORT (${actionType} mode) - v5.4.0 ===`);
         let separatorsToSort = [];
 
         try {
@@ -2103,9 +1849,7 @@
                 // For auto-sort, use the passed new tab directly
                 if (newTab.isConnected) {
                     rawTabsToConsider = [newTab];
-                    Logger.info(`🤖 Auto-sort: Processing only the newly created tab "${newTab.getAttribute('label') || 'Unknown'}" (${newTab.id})`);
                 } else {
-                    Logger.warn(`🤖 Auto-sort: New tab is no longer connected, falling back to ungrouped tabs`);
                     rawTabsToConsider = TabFilters.getUngroupedTabs(currentWorkspaceId);
                 }
             } else {
@@ -2115,13 +1859,11 @@
             }
 
             if (rawTabsToConsider.length === 0) {
-                Logger.info(`No tabs to sort in workspace. Exiting.`);
                 isSorting = false; return;
             }
 
             const enrichedTabs = rawTabsToConsider.map(tab => {
                 const data = getTabData(tab);
-                tabDataCache.set(tab.id, data);
                 return {
                     tab, data,
                     keywords: extractTitleKeywords(data.title),
@@ -2129,7 +1871,6 @@
                     openerTab: tab.openerTab
                 };
             });
-            Logger.info(`📋 Found and enriched ${enrichedTabs.length} tabs to process.`);
 
             let finalGroups = {};
 
@@ -2148,7 +1889,6 @@
                     enrichedTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
                     [...existingGroups.keys()]
                 );
-                Logger.info(`🤖 Received ${aiResults.size} initial AI suggestions to use as a scoring signal.`);
 
                 const engine = new TabGroupingEngine(enrichedTabs, existingGroups);
                 engine.generateProposals({ aiResults });
@@ -2158,7 +1898,6 @@
                 
                 // --- Step 3: Second Pass for Leftovers ---
                 if (leftoverTabs.length > 0) {
-                    Logger.info(`--- Second Pass: Grouping ${leftoverTabs.length} Leftover Tabs ---`);
                     const secondPassAiResults = await askAIForMultipleTopics(
                         leftoverTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
                         [...existingGroups.keys(), ...Object.keys(finalGroups)] // Provide full context
@@ -2168,15 +1907,12 @@
                         if (topic !== "Uncategorized") {
                             if (!finalGroups[topic]) finalGroups[topic] = [];
                             finalGroups[topic].push(tab);
-                            const tabData = enrichedTabs.find(et => et.tab === tab)?.data;
-                            Logger.debug(`✨ AI (2nd Pass) assigned "${tabData?.title || 'Unknown Tab'}" to group "${topic}"`);
                         }
                     });
                 }
             }
 
             // --- Step 4: Consolidate & Create Groups ---
-            Logger.debug(" -> Consolidating group names (Levenshtein)...");
             const originalKeys = Object.keys(finalGroups);
             const mergedKeys = new Set();
             const consolidationMap = {};
@@ -2204,7 +1940,6 @@
                              [canonicalKey, mergedKeyVal] = keyA.length <= keyB.length ? [keyA, keyB] : [keyB, keyA];
                          }
 
-                        Logger.debug(`    - Consolidating: Merging "${mergedKeyVal}" into "${canonicalKey}" (Distance: ${distance})`);
                         if (finalGroups[mergedKeyVal]) {
                             if (!finalGroups[canonicalKey]) finalGroups[canonicalKey] = [];
                             finalGroups[canonicalKey].push(...finalGroups[mergedKeyVal]);
@@ -2220,11 +1955,6 @@
                 }
             }
             
-            if (CONFIG.logging.showGroupingResults) {
-                Logger.info("\n🎯 === FINAL GROUPING RESULTS ===");
-                Logger.info(" -> Final groups for action:", Object.keys(finalGroups).map(k => `${k} (${finalGroups[k]?.length ?? 0})`).join('; ') || "None");
-            }
-            
             const existingGroupElementsMap = new Map();
             document.querySelectorAll(WorkspaceUtils.getGroupSelector(currentWorkspaceId)).forEach(el => {
                 if (el.label) existingGroupElementsMap.set(el.label, el);
@@ -2238,9 +1968,6 @@
                 const existingEl = existingGroupElementsMap.get(topic) || findGroupElement(topic, currentWorkspaceId);
 
                 if (existingEl?.isConnected) {
-                    if (CONFIG.logging.showGroupingResults) {
-                        Logger.info(` -> Moving ${tabsForThisTopic.length} tabs to existing group "${topic}".`);
-                    }
                     // Use a loop, as moveTabToGroup handles one tab at a time.
                     for (const tab of tabsForThisTopic) {
                         if (tab?.isConnected) {
@@ -2255,10 +1982,6 @@
                         }
                     }
                 } else {
-                    // This part for creating new groups was correct.
-                    if (CONFIG.logging.showGroupingResults) {
-                        Logger.info(` -> Creating new group "${topic}" with ${tabsForThisTopic.length} tabs.`);
-                    }
                     try {
                     const groupOpts = { label: topic, color: getNextGroupColor(), insertBefore: tabsForThisTopic[0] };
                     gBrowser.addTabGroup(tabsForThisTopic, groupOpts);
@@ -2267,7 +1990,6 @@
                     }
                 }
             }
-            Logger.info("--- Tab sorting process complete ---");
 
         } catch (error) {
             Logger.error("Error during overall sorting process:", error);
@@ -2293,7 +2015,6 @@
   
     // --- Clear Tabs Functionality ---
     const clearTabs = () => {
-        Logger.info("Clearing tabs...");
         let closedCount = 0;
         try {
             const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
@@ -2302,10 +2023,8 @@
             }
             const tabsToClose = TabFilters.getClearableTabs(currentWorkspaceId);
             if (tabsToClose.length === 0) {
-                Logger.info("CLEAR BTN: No ungrouped, non-pinned, non-active tabs to clear.");
                 return;
             }
-            Logger.info(`CLEAR BTN: Closing ${tabsToClose.length} tabs.`);
             tabsToClose.forEach(tab => {
                 tab.classList.add('tab-closing');
                 closedCount++;
@@ -2318,16 +2037,14 @@
                                 closeWindowWithLastTab: false
                             });
                         } catch (removeError) {
-                            Logger.warn(`CLEAR BTN: Error removing tab: ${removeError}`, tab);
+                            Logger.warn(`Error removing tab: ${removeError}`, tab);
                             if (tab?.isConnected) tab.classList.remove('tab-closing');
                         }
                     }
                 }, 500);
             });
         } catch (error) {
-            Logger.error("CLEAR BTN: Error during tab clearing:", error);
-        } finally {
-            Logger.info(`CLEAR BTN: Initiated closing for ${closedCount} tabs.`);
+            Logger.error("Error during tab clearing:", error);
         }
     };
   
@@ -2342,30 +2059,29 @@
         else {
             const periphery = document.querySelector('#tabbrowser-arrowscrollbox-periphery');
             if (periphery && !periphery.querySelector('#sort-button') && !periphery.querySelector('#clear-button')) {
-                Logger.warn("BUTTONS: No separators found, fallback to periphery.");
                 ensureButtonsExist(periphery);
-            } else if (!periphery) Logger.error("BUTTONS: No separators or fallback container found.");
+            } else if (!periphery) Logger.error("No separators or fallback container found.");
         }
     }
   
     function setupCommandsAndListener() {
         const zenCommands = document.querySelector("commandset#zenCommandSet");
         if (!zenCommands) {
-            Logger.error("BUTTONS INIT: Could not find 'commandset#zenCommandSet'.");
+            Logger.error("Could not find 'commandset#zenCommandSet'.");
             return;
         }
         if (!zenCommands.querySelector("#cmd_zenSortTabs")) {
             try {
                 zenCommands.appendChild(window.MozXULElement.parseXULToFragment(`<command id="cmd_zenSortTabs"/>`).firstChild);
             } catch (e) {
-                Logger.error("BUTTONS INIT: Error adding 'cmd_zenSortTabs':", e);
+                Logger.error("Error adding 'cmd_zenSortTabs':", e);
             }
         }
         if (!zenCommands.querySelector("#cmd_zenClearTabs")) {
             try {
                 zenCommands.appendChild(window.MozXULElement.parseXULToFragment(`<command id="cmd_zenClearTabs"/>`).firstChild);
             } catch (e) {
-                Logger.error("BUTTONS INIT: Error adding 'cmd_zenClearTabs':", e);
+                Logger.error("Error adding 'cmd_zenClearTabs':", e);
             }
         }
         if (!commandListenerAdded) {
@@ -2375,16 +2091,15 @@
                     else if (event.target.id === "cmd_zenClearTabs") clearTabs();
                 });
                 commandListenerAdded = true;
-                Logger.info("BUTTONS INIT: Command listener added.");
             } catch (e) {
-                Logger.error("BUTTONS INIT: Error adding command listener:", e);
+                Logger.error("Error adding command listener:", e);
             }
         }
     }
   
     function setupZenWorkspaceHooks() {
         if (typeof gZenWorkspaces === 'undefined') {
-            Logger.warn("BUTTONS: gZenWorkspaces not found. Skipping hooks.");
+            Logger.warn("gZenWorkspaces not found. Skipping hooks.");
             return;
         }
         if (typeof gZenWorkspaces.originalHooks?.customSortClearApplied) return;
@@ -2401,7 +2116,7 @@
                 try {
                     gZenWorkspaces.originalHooks.onTabBrowserInserted.call(gZenWorkspaces, event);
                 } catch (e) {
-                    Logger.error("HOOK: Error in original onTabBrowserInserted:", e);
+                    Logger.error("Error in original onTabBrowserInserted:", e);
                 }
             }
             setTimeout(addButtonsToAllSeparators, 150);
@@ -2411,16 +2126,14 @@
                 try {
                     gZenWorkspaces.originalHooks.updateTabsContainers.apply(gZenWorkspaces, args);
                 } catch (e) {
-                    Logger.error("HOOK: Error in original updateTabsContainers:", e);
+                    Logger.error("Error in original updateTabsContainers:", e);
                 }
             }
             setTimeout(addButtonsToAllSeparators, 150);
         };
-        Logger.info("BUTTONS HOOK: gZenWorkspaces hooks applied for Sort & Clear.");
     }
   
     function initializeScript() {
-        Logger.info("INIT: Sort & Clear Tabs Script (v5.5.0) loading...");
         let checkCount = 0;
         const maxChecks = 30;
         const checkInterval = 1000;
@@ -2434,7 +2147,6 @@
             const ready = gBReady && cmdSetExists && (sepExists || periphExists) && gZWReady;
   
             if (ready) {
-                Logger.info(`INIT: Required elements found after ${checkCount} checks. Initializing...`);
                 clearInterval(initCheckInterval);
                 const finalSetup = () => {
                     try {
@@ -2446,17 +2158,15 @@
                         setupCommandsAndListener();
                         addButtonsToAllSeparators();
                         setupZenWorkspaceHooks();
-                        Logger.info("INIT: Sort & Clear Button setup and hooks complete.");
-                        Logger.info("INIT: Enhanced tracking systems initialized.");
                     } catch (e) {
-                        Logger.error("INIT: Error during deferred final setup:", e);
+                        Logger.error("Error during deferred final setup:", e);
                     }
                 };
                 if ('requestIdleCallback' in window) requestIdleCallback(finalSetup, { timeout: 2000 });
                 else setTimeout(finalSetup, 500);
             } else if (checkCount > maxChecks) {
                 clearInterval(initCheckInterval);
-                Logger.error(`INIT: Failed to find required elements after ${maxChecks} checks.`);
+                Logger.error(`Failed to find required elements after ${maxChecks} checks.`);
             }
         }, checkInterval);
     }
@@ -2466,122 +2176,6 @@
     } else {
         window.addEventListener("load", initializeScript, { once: true });
     }
-    
-    // Global test functions - run these in console to test auto-sort
-    window.testTabAutoSort = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            TabCreationTracker.testAutoSort();
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.testTabListeners = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            TabCreationTracker.testListeners();
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.testURLChangeTracking = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            TabCreationTracker.testURLChangeTracking();
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.testURLChangeAutoSort = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            TabCreationTracker.testURLChangeAutoSort();
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.reinitializeURLTracking = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            console.log('🔄 Re-initializing URL change tracking...');
-            TabCreationTracker.initializeCurrentSelectedTab();
-            TabCreationTracker.testURLChangeTracking();
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.testURLChangeDetection = () => {
-        if (typeof TabCreationTracker !== 'undefined' && TabCreationTracker.currentSelectedTab) {
-            console.log('🧪 Testing URL change detection manually...');
-            const tab = TabCreationTracker.currentSelectedTab;
-            const currentURL = TabCreationTracker.getTabURL(tab);
-            console.log(`Current URL: ${currentURL}`);
-            console.log(`Stored URL: ${TabCreationTracker.currentSelectedTabURL}`);
-            
-            if (currentURL && currentURL !== TabCreationTracker.currentSelectedTabURL) {
-                console.log('🌐 URL change detected! Triggering auto-sort...');
-                TabCreationTracker.currentSelectedTabURL = currentURL;
-                TabCreationTracker.scheduleAutoSortForURLChange(tab);
-            } else {
-                console.log('No URL change detected');
-            }
-        } else {
-            console.log('No current selected tab available');
-        }
-    };
-    
-    window.testURLChangeWithUngroupedTab = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            console.log('🧪 Testing URL change auto-sort with ungrouped tab...');
-            
-            // Find an ungrouped tab
-            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
-            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
-            
-            if (ungroupedTabs.length > 0) {
-                const testTab = ungroupedTabs[0];
-                console.log(`Found ungrouped tab: ${testTab.id} - "${testTab.getAttribute('label') || 'Unknown'}"`);
-                
-                // Switch to this tab and test URL change
-                if (gBrowser && gBrowser.selectedTab !== testTab) {
-                    console.log('Switching to ungrouped tab for testing...');
-                    gBrowser.selectedTab = testTab;
-                    
-                    // Wait a moment then test URL change detection
-                    setTimeout(() => {
-                        console.log('Testing URL change detection on ungrouped tab...');
-                        TabCreationTracker.testURLChangeTracking();
-                    }, 500);
-                } else {
-                    console.log('Tab is already selected or no gBrowser available');
-                }
-            } else {
-                console.log('No ungrouped tabs found. Create a new tab to test URL change auto-sort.');
-            }
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    window.testTabSelectionDetection = () => {
-        if (typeof TabCreationTracker !== 'undefined') {
-            console.log('🧪 Testing tab selection detection...');
-            console.log(`Current selected tab: ${TabCreationTracker.currentSelectedTab?.id || 'none'}`);
-            console.log(`gBrowser.selectedTab: ${gBrowser?.selectedTab?.id || 'none'}`);
-            console.log(`gBrowser.selectedTabIndex: ${gBrowser?.selectedTabIndex || 'none'}`);
-            
-            // Try to manually trigger tab selection update
-            if (gBrowser && gBrowser.selectedTab) {
-                console.log('🔄 Manually updating selected tab...');
-                TabCreationTracker.updateSelectedTab(gBrowser.selectedTab);
-                console.log('✅ Selected tab updated manually');
-            } else {
-                console.log('❌ No gBrowser or selected tab available');
-            }
-        } else {
-            console.log('TabCreationTracker not initialized yet');
-        }
-    };
     
     window.ensureURLMonitoring = () => {
         if (typeof TabCreationTracker !== 'undefined') {
@@ -2600,48 +2194,6 @@
             console.log('✅ URL update triggered');
         } else {
             console.log('TabCreationTracker not initialized yet');
-        }
-    };
-    
-    // Debug function to check current auto-sort state
-    window.debugAutoSort = () => {
-        const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
-        const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
-        const existingGroups = analyzeExistingGroups(currentWorkspaceId);
-        
-        console.log('🔍 Auto-Sort Debug Info:');
-        console.log(`  Current Workspace: ${currentWorkspaceId}`);
-        console.log(`  Ungrouped Tabs: ${ungroupedTabs.length}`);
-        console.log(`  Existing Groups: ${existingGroups.size}`);
-        console.log(`  Auto-sort enabled: ${CONFIG.autoSortNewTabs.enabled}`);
-        console.log(`  URL change auto-sort enabled: ${CONFIG.autoSortOnURLChange.enabled}`);
-        console.log(`  URL change delay: ${CONFIG.autoSortOnURLChange.delay}ms`);
-        console.log(`  URL change debounce: ${CONFIG.autoSortOnURLChange.debounceTime}ms`);
-        console.log(`  Min tabs for new group: ${CONFIG.thresholds.minTabsForNewGroup}`);
-        
-        if (ungroupedTabs.length > 0) {
-            console.log('  Ungrouped tab details:');
-            ungroupedTabs.forEach((tab, i) => {
-                const title = tab.getAttribute('label') || 'Unknown';
-                const hostname = tab.linkedBrowser?.currentURI?.host || 'N/A';
-                console.log(`    ${i + 1}. "${title}" (${hostname}) - ID: ${tab.id}`);
-            });
-        }
-        
-        if (existingGroups.size > 0) {
-            console.log('  Existing groups:');
-            existingGroups.forEach((groupData, groupName) => {
-                console.log(`    "${groupName}": ${groupData.tabs.length} tabs`);
-            });
-        }
-        
-        // Add URL change tracking info
-        if (TabCreationTracker) {
-            console.log('  URL Change Tracking:');
-            console.log(`    Current selected tab: ${TabCreationTracker.currentSelectedTab?.id || 'none'}`);
-            console.log(`    Current selected tab URL: ${TabCreationTracker.currentSelectedTabURL || 'none'}`);
-            console.log(`    Pending URL change sorts: ${TabCreationTracker.pendingURLChangeSorts.size}`);
-            console.log(`    Last auto-sort times tracked: ${TabCreationTracker.lastAutoSortTime.size}`);
         }
     };
   

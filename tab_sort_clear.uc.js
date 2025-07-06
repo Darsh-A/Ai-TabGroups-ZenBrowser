@@ -1,4 +1,4 @@
-// VERSION 6.0.0 - Weights, Scorers, AutoSorting, AI-Only Mode.
+// VERSION 5.6.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
 (() => {
     // --- Configuration ---
     const CONFIG = {
@@ -459,8 +459,8 @@
                     });
                 }
                 
-                // Trigger auto-sort if enabled
-                if (CONFIG.autoSortNewTabs.enabled) {
+                // Trigger auto-sort if enabled and tab is not pinned
+                if (CONFIG.autoSortNewTabs.enabled && !tab.pinned) {
                     this.scheduleAutoSort(tab);
                 }
             });
@@ -506,8 +506,8 @@
                 gBrowser.tabContainer.addEventListener('TabOpen', (event) => {
                     const tab = event.target;
                     
-                    // Only schedule if not already scheduled
-                    if (!this.pendingAutoSorts.has(tab.id)) {
+                    // Only schedule if not already scheduled and tab is not pinned
+                    if (!this.pendingAutoSorts.has(tab.id) && !tab.pinned) {
                         if (CONFIG.autoSortNewTabs.enabled) {
                             this.scheduleAutoSort(tab);
                         }
@@ -518,8 +518,8 @@
                 window.addEventListener('TabOpen', (event) => {
                     const tab = event.target;
                     
-                    // Only schedule if not already scheduled
-                    if (!this.pendingAutoSorts.has(tab.id)) {
+                    // Only schedule if not already scheduled and tab is not pinned
+                    if (!this.pendingAutoSorts.has(tab.id) && !tab.pinned) {
                         if (CONFIG.autoSortNewTabs.enabled) {
                             this.scheduleAutoSort(tab);
                         }
@@ -738,6 +738,11 @@
                 return;
             }
             
+            // Skip auto-sort for pinned tabs
+            if (tab.pinned) {
+                return;
+            }
+            
             // Check debounce time
             const lastSortTime = this.lastAutoSortTime.get(tab.id) || 0;
             const timeSinceLastSort = Date.now() - lastSortTime;
@@ -763,6 +768,12 @@
         async performAutoSortForURLChange(tab) {
             if (!tab.isConnected) {
                 Logger.warn(`Tab ${tab.id} no longer connected, skipping URL change auto-sort`);
+                return;
+            }
+            
+            // Skip auto-sort for pinned tabs
+            if (tab.pinned) {
+                Logger.info(`🤖 URL Auto-sort: Tab ${tab.id} is pinned, skipping URL change auto-sort`);
                 return;
             }
             
@@ -805,6 +816,12 @@
         },
         
         scheduleAutoSort(tab) {
+            // Additional safety check for pinned tabs
+            if (tab.pinned) {
+                Logger.info(`🤖 Auto-sort: Tab ${tab.id} is pinned, skipping auto-sort scheduling`);
+                return;
+            }
+            
             const timeoutId = setTimeout(() => {
                 this.performAutoSort(tab);
                 this.pendingAutoSorts.delete(tab.id);
@@ -818,6 +835,12 @@
             
             if (!newTab.isConnected) {
                 Logger.warn(`❌ Tab ${newTab.id} no longer connected, skipping auto-sort`);
+                return;
+            }
+            
+            // Skip auto-sort for pinned tabs
+            if (newTab.pinned) {
+                Logger.info(`🤖 Auto-sort: Tab ${newTab.id} is pinned, skipping auto-sort`);
                 return;
             }
             
@@ -1847,9 +1870,10 @@
             
             if (isAutoSortForNewTab && newTab) {
                 // For auto-sort, use the passed new tab directly
-                if (newTab.isConnected) {
+                if (newTab.isConnected && !newTab.pinned) {
                     rawTabsToConsider = [newTab];
                 } else {
+                    // If the new tab is pinned or not connected, get ungrouped tabs but exclude pinned ones
                     rawTabsToConsider = TabFilters.getUngroupedTabs(currentWorkspaceId);
                 }
             } else {

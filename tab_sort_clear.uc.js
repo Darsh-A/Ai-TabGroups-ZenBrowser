@@ -1,8 +1,32 @@
-// VERSION 5.2.4 - Two-Pass AI & Pretty Names
+// VERSION 5.6.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
 (() => {
     // --- Configuration ---
     const CONFIG = {
+        // --- Logging Control ---
+        logging: {
+            enabled: true,
+            level: 'debug', // 'debug', 'info', 'warn', 'error', 'none'
+            showDetailedScoring: false, // Show individual scorer details
+            showWeightChanges: true, // Show dynamic weight adjustments
+            showGroupingResults: true // Show final grouping results
+        },
+
         aiOnlyGrouping: false, // << --- Set to true to let AI handle all grouping logic
+        
+        // Auto-sort new tabs into groups automatically
+        // This feature listens for new tab creation and automatically sorts them
+        // without requiring manual button clicks
+        autoSortNewTabs: {
+            enabled: true, // << --- Set to false to disable auto-sorting
+            delay: 1000, // Wait 1 second after tab creation before sorting
+            maxTabsToSort: 10, // Only auto-sort if 10 or fewer tabs are being sorted
+            requireUserActivity: true // Only auto-sort if user has interacted with the tab
+        },
+        
+        // Button visibility settings
+        buttons: {
+            autoHide: true // << --- Set to false to make buttons always visible
+        },
 
         // --- Scoring Weights & Thresholds ---
         scoringWeights: {
@@ -14,9 +38,51 @@
             keyword: 0.60
         },
 
+        // --- Dynamic Weight Adaptation ---
+        dynamicWeights: {
+            enabled: true,
+            
+            // Size-based weight profiles
+            sizeProfiles: {
+                small: { // 1-5 tabs
+                    hostname: 0.90,
+                    contentType: 0.85,
+                    aiSuggestion: 0.80,
+                    opener: 0.75,
+                    existingGroup: 0.70,
+                    keyword: 0.60
+                },
+                medium: { // 6-15 tabs
+                    existingGroup: 0.90,
+                    opener: 0.85,
+                    hostname: 0.80,
+                    contentType: 0.75,
+                    aiSuggestion: 0.70,
+                    keyword: 0.60
+                },
+                large: { // 16+ tabs
+                    existingGroup: 0.90,
+                    aiSuggestion: 0.75,
+                    hostname: 0.85,
+                    contentType: 0.75,
+                    opener: 0.70,
+                    keyword: 0.60
+                }
+            },
+            
+            // Time-based opener adjustments
+            openerTimeTracking: {
+                enabled: true,
+                recentOpenerBoost: 0.20, // Boost for recent opener relationships
+                recentThreshold: 5 * 60 * 1000, // 5 minutes
+                decayHalfLife: 15 * 60 * 1000 // 15 minutes
+            },
+
+        },
+
         thresholds: {
             minGroupingScore: 0.55,
-            minTabsForNewGroup: 2 // Threshold for the FIRST pass. AI pass will group everything.
+            minTabsForNewGroup: 1 // Threshold for the FIRST pass. AI pass will group everything.
         },
 
         // Essential hostname-to-brand mappings
@@ -36,11 +102,6 @@
             'developer.mozilla.org': 'MDN Web Docs',
             'mdn': 'MDN Web Docs',
             'pinterest.com': 'Pinterest',
-            'ibm.com': 'IBM',
-            // *** NEW: Added pretty names for your university examples ***
-            'tum.de': 'TUM',
-            'lmu.de': 'LMU',
-            'uni-heidelberg.de': 'Heidelberg University'
         },
   
         apiConfig: {
@@ -186,12 +247,13 @@
                 patterns: [/google\.com\/search/, /bing\.com\/search/, /duckduckgo\.com\/\?q=/]
             },],
         },
-        styles: `
+        getStyles() {
+            return `
         #sort-button {
-            opacity: 0;
+            opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
             transition: opacity 0.1s ease-in-out;
             position: absolute;
-            right: 55px; /* Positioned to the left of the clear button */
+            right: 57px; /* Reduced by 5px */
             font-size: 12px;
             width: 60px;
             pointer-events: auto;
@@ -199,17 +261,35 @@
             appearance: none;
             margin-top: -8px;
             padding: 1px;
-            color: gray;
+            color: ${CONFIG.buttons.autoHide ? 'gray' : 'white'};
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        #sort-button label { display: block; }
+        #sort-button label { display: block; margin-left: 2px; font-size: 13px; }
         #sort-button:hover {
             opacity: 1;
             color: white;
             border-radius: 4px;
         }
+        
+        /* Broom brushing animation */
+        @keyframes brush-sweep {
+            0% { transform: rotate(0deg); }
+            20% { transform: rotate(-15deg); }
+            40% { transform: rotate(15deg); }
+            60% { transform: rotate(-15deg); }
+            80% { transform: rotate(15deg); }  
+            100% { transform: rotate(0deg); }
+        }
+        
+        #sort-button.brushing .broom-icon {
+            animation: brush-sweep 0.8s ease-in-out;
+            transform-origin: 50% 50%; /* Center of broom */
+        }
   
         #clear-button {
-            opacity: 0;
+            opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
             transition: opacity 0.1s ease-in-out;
             position: absolute;
             right: 0;
@@ -220,9 +300,13 @@
             appearance: none;
             margin-top: -8px;
             padding: 1px;
-            color: grey;
+            color: ${CONFIG.buttons.autoHide ? 'grey' : 'white'};
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        #clear-button label { display: block; }
+        #clear-button label { display: block; margin-left: 2px; font-size: 13px; }
+        #clear-button .down-arrow-icon { margin-right: 2px; }
         #clear-button:hover {
             opacity: 1;
             color: white;
@@ -235,16 +319,22 @@
              min-height: 1px;
              background-color: var(--lwt-toolbarbutton-border-color, rgba(200, 200, 200, 0.1));
              transition: width 0.1s ease-in-out, margin-right 0.1s ease-in-out, background-color 0.3s ease-out;
+             ${CONFIG.buttons.autoHide ? '' : `
+             width: calc(100% - 117px);
+             margin-right: auto;
+             `}
         }
         .vertical-pinned-tabs-container-separator:has(#sort-button):has(#clear-button):hover {
-            width: calc(100% - 115px);
+            width: calc(100% - 117px);
             margin-right: auto;
             background-color: var(--lwt-toolbarbutton-hover-background, rgba(200, 200, 200, 0.2));
         }
+        ${CONFIG.buttons.autoHide ? `
         .vertical-pinned-tabs-container-separator:hover #sort-button,
         .vertical-pinned-tabs-container-separator:hover #clear-button {
             opacity: 1;
         }
+        ` : ''}
         @keyframes pulse-separator-bg {
             0% { background-color: var(--lwt-toolbarbutton-border-color, rgb(255, 141, 141)); }
             50% { background-color: var(--lwt-toolbarbutton-hover-background, rgba(137, 178, 255, 0.91)); }
@@ -270,17 +360,517 @@
             animation: loading-pulse-tab 1.5s ease-in-out infinite;
             will-change: opacity;
         }
+        
+        @keyframes auto-sort-pulse {
+            0%, 100% { background-color: rgba(33, 150, 243, 0.1); }
+            50% { background-color: rgba(33, 150, 243, 0.3); }
+        }
+        .tab-auto-sorting {
+            /* animation: auto-sort-pulse 2s ease-in-out infinite; */
+            animation: none;
+            will-change: background-color;
+        }
         .tabbrowser-tab {
             transition: transform 0.3s ease-out, opacity 0.3s ease-out, max-height 0.5s ease-out, margin 0.5s ease-out, padding 0.5s ease-out;
         }
-        `
+        `;
+        }
     };
   
+    // --- Logging Utility ---
+    const Logger = {
+        shouldLog(level) {
+            if (!CONFIG.logging.enabled) return false;
+            const levels = { 'debug': 0, 'info': 1, 'warn': 2, 'error': 3, 'none': 4 };
+            const currentLevel = levels[CONFIG.logging.level] || 1;
+            const requestedLevel = levels[level] || 1;
+            return requestedLevel >= currentLevel;
+        },
+        
+        debug(...args) {
+            if (this.shouldLog('debug')) console.log(...args);
+        },
+        
+        info(...args) {
+            if (this.shouldLog('info')) console.log(...args);
+        },
+        
+        warn(...args) {
+            if (this.shouldLog('warn')) console.warn(...args);
+        },
+        
+        error(...args) {
+            if (this.shouldLog('error')) console.error(...args);
+        }
+    };
+
     // --- Globals & State ---
     let groupColorIndex = 0;
     let isSorting = false;
     let commandListenerAdded = false;
     let tabDataCache = new Map();
+    
+        // --- Tab Creation Tracking ---
+    const TabCreationTracker = {
+        tabCreationTimes: new Map(),
+        openerRelationships: new Map(), // tabId -> { openerId, creationTime }
+        pendingAutoSorts: new Map(), // tabId -> timeoutId
+        
+        init() {
+            this.setupTabListeners();
+            
+            // Also try alternative event listener approach
+            this.setupAlternativeListeners();
+        },
+        
+        setupTabListeners() {
+            // Ensure gBrowser is available
+            if (!gBrowser || !gBrowser.tabContainer) {
+                Logger.warn('gBrowser not available, retrying in 1 second...');
+                setTimeout(() => this.setupTabListeners(), 1000);
+                return;
+            }
+            
+            Logger.info('Setting up tab creation listeners...');
+            
+            // Listen for new tab creation
+            gBrowser.addEventListener('TabOpen', (event) => {
+                const tab = event.target;
+                const now = Date.now();
+                
+                Logger.info(`📅 Tab ${tab.id} created at ${new Date(now).toLocaleTimeString()}`);
+                
+                this.tabCreationTimes.set(tab.id, now);
+                
+                // Track opener relationship
+                if (tab.openerTab) {
+                    this.openerRelationships.set(tab.id, {
+                        openerId: tab.openerTab.id,
+                        creationTime: now
+                    });
+                    Logger.info(`📅 Tab ${tab.id} has opener tab ${tab.openerTab.id}`);
+                }
+                
+                // Trigger auto-sort if enabled
+                if (CONFIG.autoSortNewTabs.enabled) {
+                    Logger.info(`🤖 Auto-sort: Enabled, scheduling auto-sort for tab ${tab.id}`);
+                    this.scheduleAutoSort(tab);
+                } else {
+                    Logger.info(`🤖 Auto-sort: Disabled, skipping auto-sort for tab ${tab.id}`);
+                }
+            });
+            
+            // Clean up when tabs are closed
+            gBrowser.addEventListener('TabClose', (event) => {
+                const tab = event.target;
+                this.tabCreationTimes.delete(tab.id);
+                this.openerRelationships.delete(tab.id);
+                
+                // Cancel pending auto-sort
+                const timeoutId = this.pendingAutoSorts.get(tab.id);
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    this.pendingAutoSorts.delete(tab.id);
+                }
+            });
+            
+            Logger.info('Tab creation listeners set up successfully');
+        },
+        
+        setupAlternativeListeners() {
+            // Alternative approach: listen to the tab container directly
+            const setupAltListeners = () => {
+                if (!gBrowser || !gBrowser.tabContainer) {
+                    setTimeout(setupAltListeners, 500);
+                    return;
+                }
+                
+                Logger.info('Setting up alternative tab listeners...');
+                
+                // Listen to tab container for new tabs
+                gBrowser.tabContainer.addEventListener('TabOpen', (event) => {
+                    const tab = event.target;
+                    Logger.info(`📅 Alternative listener: Tab ${tab.id} created`);
+                    
+                    // Only schedule if not already scheduled
+                    if (!this.pendingAutoSorts.has(tab.id)) {
+                        if (CONFIG.autoSortNewTabs.enabled) {
+                            this.scheduleAutoSort(tab);
+                        }
+                    }
+                });
+                
+                // Also try listening to the window
+                window.addEventListener('TabOpen', (event) => {
+                    const tab = event.target;
+                    Logger.info(`📅 Window listener: Tab ${tab.id} created`);
+                    
+                    // Only schedule if not already scheduled
+                    if (!this.pendingAutoSorts.has(tab.id)) {
+                        if (CONFIG.autoSortNewTabs.enabled) {
+                            this.scheduleAutoSort(tab);
+                        }
+                    }
+                });
+                
+                Logger.info('Alternative tab listeners set up successfully');
+            };
+            
+            setupAltListeners();
+        },
+        
+        scheduleAutoSort(tab) {
+            Logger.info(`🤖 Auto-sort: Tab ${tab.id} created, scheduling auto-sort in ${CONFIG.autoSortNewTabs.delay}ms`);
+            
+            const timeoutId = setTimeout(() => {
+                Logger.info(`🤖 Auto-sort: Timeout fired for tab ${tab.id}, performing auto-sort`);
+                this.performAutoSort(tab);
+                this.pendingAutoSorts.delete(tab.id);
+            }, CONFIG.autoSortNewTabs.delay);
+            
+            this.pendingAutoSorts.set(tab.id, timeoutId);
+            Logger.debug(`⏰ Scheduled auto-sort for tab ${tab.id} in ${CONFIG.autoSortNewTabs.delay}ms`);
+        },
+        
+        async performAutoSort(newTab) {
+            Logger.info(`🤖 Auto-sort: Starting auto-sort for tab ${newTab.id}`);
+            
+            if (!newTab.isConnected) {
+                Logger.warn(`❌ Tab ${newTab.id} no longer connected, skipping auto-sort`);
+                return;
+            }
+            
+            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+            Logger.info(`🤖 Auto-sort: Current workspace ID: ${currentWorkspaceId}`);
+            
+            if (!WorkspaceUtils.validateWorkspace(currentWorkspaceId)) {
+                Logger.warn(`❌ Invalid workspace, skipping auto-sort`);
+                return;
+            }
+            
+            // Check if user activity is required
+            if (CONFIG.autoSortNewTabs.requireUserActivity) {
+                const hasUserActivity = this.checkUserActivity(newTab);
+                Logger.info(`🤖 Auto-sort: User activity check for tab ${newTab.id}: ${hasUserActivity}`);
+                if (!hasUserActivity) {
+                    Logger.warn(`⏳ Waiting for user activity on tab ${newTab.id}`);
+                    return;
+                }
+            }
+            
+            // Get ungrouped tabs in current workspace
+            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
+            Logger.info(`🤖 Auto-sort: Found ${ungroupedTabs.length} ungrouped tabs in workspace`);
+            
+            // Only auto-sort if we have a reasonable number of tabs
+            if (ungroupedTabs.length > CONFIG.autoSortNewTabs.maxTabsToSort) {
+                Logger.warn(`⚠️ Too many ungrouped tabs (${ungroupedTabs.length}), skipping auto-sort`);
+                return;
+            }
+            
+            // For auto-sort, be more aggressive about grouping even single tabs
+            Logger.info(`🤖 Auto-sort: Processing ${ungroupedTabs.length} ungrouped tabs`);
+            Logger.info(`🤖 Auto-sort: Tab details: ${ungroupedTabs.map(t => `"${t.getAttribute('label') || 'Unknown'}" (${t.id})`).join(', ')}`);
+            
+            Logger.info(`🤖 Auto-sorting ${ungroupedTabs.length} tabs including newly created tab`);
+            
+            try {
+                // Add visual indicator for auto-sorting
+                ungroupedTabs.forEach(tab => {
+                    if (tab.isConnected) {
+                        tab.classList.add('tab-auto-sorting');
+                    }
+                });
+                
+                Logger.info(`🤖 Auto-sort: Starting sorting process...`);
+                // Use the existing sorting logic but only for ungrouped tabs
+                await sortTabsByTopic();
+                Logger.info(`🤖 Auto-sort: Sorting process completed`);
+                
+                // Remove visual indicator
+                setTimeout(() => {
+                    ungroupedTabs.forEach(tab => {
+                        if (tab.isConnected) {
+                            tab.classList.remove('tab-auto-sorting');
+                        }
+                    });
+                }, 1000);
+                
+            } catch (error) {
+                Logger.error("Auto-sort failed:", error);
+                
+                // Remove visual indicator on error
+                ungroupedTabs.forEach(tab => {
+                    if (tab.isConnected) {
+                        tab.classList.remove('tab-auto-sorting');
+                    }
+                });
+            }
+        },
+        
+        checkUserActivity(tab) {
+            // Check if tab has been loaded and user has interacted
+            const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
+            if (!browser) return false;
+            
+            // Check if tab has loaded content
+            const hasLoaded = browser.currentURI && 
+                             !browser.currentURI.spec.startsWith('about:') &&
+                             browser.currentURI.spec !== 'about:blank';
+            
+            // Check if user has interacted with the tab
+            const hasUserActivity = tab.hasAttribute('data-user-activity') || 
+                                   tab.hasAttribute('data-loaded') ||
+                                   tab.getAttribute('label') !== 'Loading...';
+            
+            // For auto-sort, we're more lenient - just need the page to be loaded
+            return hasLoaded;
+        },
+        
+        getTabAge(tabId) {
+            const creationTime = this.tabCreationTimes.get(tabId);
+            return creationTime ? Date.now() - creationTime : null;
+        },
+        
+        getOpenerRelationshipAge(tabId) {
+            const relationship = this.openerRelationships.get(tabId);
+            return relationship ? Date.now() - relationship.creationTime : null;
+        },
+        
+        isRecentOpener(tabId) {
+            const age = this.getOpenerRelationshipAge(tabId);
+            return age && age < CONFIG.dynamicWeights.openerTimeTracking.recentThreshold;
+        },
+        
+        // Test function to manually trigger auto-sort
+        testAutoSort() {
+            Logger.info(`🧪 Testing auto-sort system...`);
+            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+            Logger.info(`🧪 Current workspace: ${currentWorkspaceId}`);
+            
+            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
+            Logger.info(`🧪 Ungrouped tabs: ${ungroupedTabs.length}`);
+            
+            if (ungroupedTabs.length > 0) {
+                Logger.info(`🧪 Triggering manual auto-sort for ${ungroupedTabs.length} tabs`);
+                this.performAutoSort(ungroupedTabs[0]);
+            } else {
+                Logger.info(`🧪 No ungrouped tabs to sort`);
+            }
+        },
+        
+        // Test function to check if listeners are working
+        testListeners() {
+            Logger.info(`🧪 Testing tab creation listeners...`);
+            Logger.info(`🧪 gBrowser available: ${!!gBrowser}`);
+            Logger.info(`🧪 gBrowser.tabContainer available: ${!!(gBrowser && gBrowser.tabContainer)}`);
+            Logger.info(`🧪 Pending auto-sorts: ${this.pendingAutoSorts.size}`);
+            Logger.info(`🧪 Tracked tab creation times: ${this.tabCreationTimes.size}`);
+            
+            // Try to manually trigger a TabOpen event for testing
+            if (gBrowser && gBrowser.tabs.length > 0) {
+                const testTab = gBrowser.tabs[0];
+                Logger.info(`🧪 Simulating TabOpen event for tab ${testTab.id}`);
+                
+                // Create a synthetic event
+                const event = new CustomEvent('TabOpen', {
+                    detail: { tab: testTab },
+                    bubbles: true
+                });
+                
+                gBrowser.dispatchEvent(event);
+                gBrowser.tabContainer.dispatchEvent(event);
+                window.dispatchEvent(event);
+                
+                Logger.info(`🧪 Synthetic events dispatched`);
+            }
+        }
+    };
+    
+    // --- User Behavior & Content Analysis ---
+    const UserBehaviorAnalyzer = {
+        tabAccessPatterns: new Map(), // tabId -> { accessCount, lastAccess, dwellTime }
+        workspacePatterns: new Map(), // workspaceId -> { workPattern, domainPreferences }
+        
+        init() {
+            this.setupBehaviorTracking();
+        },
+        
+        setupBehaviorTracking() {
+            // Track tab selection (user interest)
+            gBrowser.addEventListener('TabSelect', (event) => {
+                const tab = event.target;
+                this.recordTabAccess(tab.id);
+                
+                // Mark tab as having user activity for auto-sort
+                tab.setAttribute('data-user-activity', 'true');
+            });
+            
+            // Track tab focus/blur for dwell time
+            gBrowser.addEventListener('TabSelect', (event) => {
+                const tab = event.target;
+                tab.setAttribute('data-focus-start', Date.now());
+            });
+            
+            gBrowser.addEventListener('TabSelect', (event) => {
+                const previousTab = event.detail?.previousTab;
+                if (previousTab) {
+                    const focusStart = parseInt(previousTab.getAttribute('data-focus-start') || '0');
+                    const dwellTime = Date.now() - focusStart;
+                    this.recordDwellTime(previousTab.id, dwellTime);
+                }
+            });
+            
+            // Track page load completion for auto-sort
+            gBrowser.addEventListener('TabOpen', (event) => {
+                const tab = event.target;
+                const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
+                
+                if (browser) {
+                    browser.addEventListener('load', () => {
+                        // Mark tab as loaded for auto-sort
+                        tab.setAttribute('data-loaded', 'true');
+                    }, { once: true });
+                }
+            });
+        },
+        
+        recordTabAccess(tabId) {
+            const now = Date.now();
+            const pattern = this.tabAccessPatterns.get(tabId) || { accessCount: 0, lastAccess: 0, dwellTime: 0 };
+            
+            pattern.accessCount++;
+            pattern.lastAccess = now;
+            
+            this.tabAccessPatterns.set(tabId, pattern);
+        },
+        
+        recordDwellTime(tabId, dwellTime) {
+            const pattern = this.tabAccessPatterns.get(tabId);
+            if (pattern) {
+                pattern.dwellTime += dwellTime;
+            }
+        },
+        
+        analyzeWorkspaceBehavior(workspaceId) {
+            const workspaceTabs = Array.from(gBrowser.tabs)
+                .filter(tab => tab.getAttribute('zen-workspace-id') === workspaceId);
+            
+            const domains = workspaceTabs.map(tab => {
+                try {
+                    return new URL(tab.linkedBrowser?.currentURI?.spec || '').hostname;
+                } catch { return null; }
+            }).filter(Boolean);
+            
+            const domainCounts = {};
+            domains.forEach(domain => {
+                domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+            });
+            
+            // Determine work vs leisure pattern
+            const workKeywords = ['github', 'stackoverflow', 'docs', 'api', 'code', 'developer'];
+            const leisureKeywords = ['youtube', 'reddit', 'social', 'entertainment', 'game'];
+            
+            let workScore = 0, leisureScore = 0;
+            domains.forEach(domain => {
+                const domainLower = domain.toLowerCase();
+                workKeywords.forEach(kw => { if (domainLower.includes(kw)) workScore++; });
+                leisureKeywords.forEach(kw => { if (domainLower.includes(kw)) leisureScore++; });
+            });
+            
+            return {
+                workPattern: workScore > leisureScore ? 'work' : 'leisure',
+                domainPreferences: domainCounts,
+                totalTabs: workspaceTabs.length
+            };
+        },
+        
+        getUserInterestScore(tabId) {
+            const pattern = this.tabAccessPatterns.get(tabId);
+            if (!pattern) return 0.5; // Neutral if no data
+            
+            // Calculate interest based on access frequency and dwell time
+            const accessScore = Math.min(pattern.accessCount / 5, 1.0); // Cap at 5 accesses
+            const dwellScore = Math.min(pattern.dwellTime / (30 * 60 * 1000), 1.0); // Cap at 30 minutes
+            const recencyScore = Math.max(0, 1 - (Date.now() - pattern.lastAccess) / (24 * 60 * 60 * 1000)); // Decay over 24h
+            
+            return (accessScore * 0.4 + dwellScore * 0.4 + recencyScore * 0.2);
+        }
+    };
+    
+    const ContentComplexityAnalyzer = {
+        analyzeContentComplexity(tabData) {
+            const complexity = {
+                textLength: 0,
+                keywordDensity: 0,
+                technicalTerms: 0,
+                readabilityScore: 0,
+                overallComplexity: 0
+            };
+            
+            // Analyze title and description
+            const text = `${tabData.title} ${tabData.description}`;
+            complexity.textLength = text.length;
+            
+            // Count technical terms
+            const technicalTerms = [
+                'api', 'sdk', 'framework', 'library', 'algorithm', 'protocol', 'database',
+                'server', 'client', 'authentication', 'authorization', 'encryption',
+                'deployment', 'configuration', 'optimization', 'performance', 'scalability'
+            ];
+            
+            const textLower = text.toLowerCase();
+            complexity.technicalTerms = technicalTerms.filter(term => 
+                textLower.includes(term)
+            ).length;
+            
+            // Calculate keyword density
+            const words = text.split(/\s+/).filter(word => word.length > 3);
+            const uniqueWords = new Set(words);
+            complexity.keywordDensity = uniqueWords.size / words.length;
+            
+            // Simple readability score (lower = more complex)
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            const avgWordsPerSentence = words.length / sentences.length;
+            complexity.readabilityScore = Math.max(0, 1 - (avgWordsPerSentence / 20)); // Normalize to 0-1
+            
+            // Overall complexity score
+            complexity.overallComplexity = (
+                (complexity.technicalTerms / 10) * 0.3 +
+                (1 - complexity.keywordDensity) * 0.2 +
+                (1 - complexity.readabilityScore) * 0.3 +
+                Math.min(complexity.textLength / 1000, 1) * 0.2
+            );
+            
+            return complexity;
+        },
+        
+        getComplexityAdjustment(complexity) {
+            // High complexity content gets different weight adjustments
+            if (complexity.overallComplexity > 0.7) {
+                return {
+                    contentType: 1.2, // Content type matters more for complex content
+                    keyword: 0.8,     // Keywords matter less
+                    aiSuggestion: 1.1 // AI better at complex categorization
+                };
+            } else if (complexity.overallComplexity < 0.3) {
+                return {
+                    hostname: 1.1,    // Simple content: domain matters more
+                    keyword: 1.2,     // Keywords matter more
+                    aiSuggestion: 0.9 // AI less needed for simple content
+                };
+            }
+            
+            return { // Default adjustments
+                existingGroup: 1.0,
+                opener: 1.0,
+                contentType: 1.0,
+                hostname: 1.0,
+                aiSuggestion: 1.0,
+                keyword: 1.0
+            };
+        }
+    };
 
     // --- SCORING SYSTEM ARCHITECTURE ---
 
@@ -288,41 +878,60 @@
         constructor(enrichedTabs, existingGroups) {
             this.enrichedTabs = enrichedTabs;
             this.existingGroups = existingGroups;
+            this.dynamicWeights = getDynamicWeights(enrichedTabs, existingGroups);
             this.scorers = [
-                new OpenerScorer(),
-                new ContentTypeScorer(),
-                new HostnameScorer(),
-                new KeywordScorer(),
-                new ExistingGroupScorer()
+                new OpenerScorer(this.dynamicWeights),
+                new ContentTypeScorer(this.dynamicWeights),
+                new HostnameScorer(this.dynamicWeights),
+                new KeywordScorer(this.dynamicWeights),
+                new ExistingGroupScorer(this.dynamicWeights)
             ];
             this.tabProposals = new Map();
         }
 
         generateProposals(context) {
-            console.log("--- Generating Score Proposals ---");
+            Logger.debug("--- Generating Score Proposals ---");
             this.enrichedTabs.forEach(et => {
                 const proposals = [];
+                
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.debug(`📊 Analyzing tab: "${et.data.title}" (${et.data.hostname})`);
+                }
+                
                 this.scorers.forEach(scorer => {
-                    proposals.push(...scorer.propose(et, this.enrichedTabs, this.existingGroups));
+                    const scorerProposals = scorer.propose(et, this.enrichedTabs, this.existingGroups);
+                    proposals.push(...scorerProposals);
                 });
 
                 if (context.aiResults.has(et.tab)) {
                     const aiTopic = context.aiResults.get(et.tab);
                     if (aiTopic !== "Uncategorized") {
-                        proposals.push({
+                        const aiProposal = {
                             groupName: aiTopic,
-                            score: CONFIG.scoringWeights.aiSuggestion,
+                            score: this.dynamicWeights.aiSuggestion,
                             source: 'AI'
-                        });
+                        };
+                        proposals.push(aiProposal);
+                        
+                        if (CONFIG.logging.showDetailedScoring) {
+                            Logger.debug(`  AI Suggestion: "${aiTopic}" (score: ${aiProposal.score.toFixed(3)})`);
+                        }
                     }
                 }
+                
+                if (proposals.length > 0) {
+                    proposals.sort((a, b) => b.score - a.score);
+                    if (CONFIG.logging.showDetailedScoring) {
+                        Logger.debug(`  🏆 Best proposal: "${proposals[0].groupName}" (score: ${proposals[0].score.toFixed(3)})`);
+                    }
+                }
+                
                 this.tabProposals.set(et.tab, proposals);
             });
         }
         
-        // *** FIXED: Logic to correctly identify leftover tabs ***
         resolveGroupAssignments() {
-            console.log("--- Resolving Group Assignments (First Pass) ---");
+            Logger.debug("--- Resolving Group Assignments (First Pass) ---");
             const provisionalGroups = new Map();
             
             // Assign every tab to its best possible group provisionally
@@ -349,7 +958,11 @@
             // Now, filter the provisional groups into final groups and leftovers
             for (const [name, tabs] of provisionalGroups.entries()) {
                 const isExisting = this.existingGroups.has(name);
-                if (tabs.length >= CONFIG.thresholds.minTabsForNewGroup || isExisting) {
+                // For auto-sort, be more aggressive about grouping single tabs into existing groups
+                const isAutoSortMode = this.enrichedTabs.length <= CONFIG.autoSortNewTabs.maxTabsToSort;
+                const shouldCreateGroup = tabs.length >= CONFIG.thresholds.minTabsForNewGroup || isExisting || (isAutoSortMode && isExisting);
+                
+                if (shouldCreateGroup) {
                     finalGroups.set(name, tabs);
                     tabs.forEach(t => assignedTabs.add(t));
                 }
@@ -362,10 +975,10 @@
                 }
             });
 
-            console.log(`First Pass Results: ${finalGroups.size} groups formed, ${leftoverTabs.length} tabs remaining for AI cleanup.`);
+            Logger.info(`First Pass Results: ${finalGroups.size} groups formed, ${leftoverTabs.length} tabs remaining for AI cleanup.`);
             
             const finalGroupsObject = {};
-            for(const [name, tabs] of finalGroups) {
+            for (const [name, tabs] of finalGroups) {
                 finalGroupsObject[name] = tabs;
             }
 
@@ -376,12 +989,32 @@
     // --- Individual Scorer Implementations ---
 
     class OpenerScorer {
+        constructor(weights) {
+            this.weights = weights;
+        }
+        
         propose(tab, allTabs, existingGroups) {
             if (tab.openerTab?.isConnected) {
                 const openerEnrichedTab = allTabs.find(et => et.tab.id === tab.openerTab.id);
                 if (openerEnrichedTab) {
                     const groupName = processTopic(openerEnrichedTab.data.title);
-                    return [{ groupName, score: CONFIG.scoringWeights.opener, source: 'Opener' }];
+                    let score = this.weights.opener;
+                    
+                    // Apply time-based adjustments if enabled
+                    if (CONFIG.dynamicWeights.openerTimeTracking.enabled) {
+                        const isRecent = TabCreationTracker.isRecentOpener(tab.tab.id);
+                        if (isRecent) {
+                            score += CONFIG.dynamicWeights.openerTimeTracking.recentOpenerBoost;
+                            if (CONFIG.logging.showDetailedScoring) {
+                                Logger.debug(`    ⏰ Recent opener boost applied (+${CONFIG.dynamicWeights.openerTimeTracking.recentOpenerBoost})`);
+                            }
+                        }
+                    }
+                    
+                    if (CONFIG.logging.showDetailedScoring) {
+                        Logger.debug(`    🔗 OpenerScorer: Found opener tab "${openerEnrichedTab.data.title}" → group "${groupName}" (score: ${score.toFixed(3)})`);
+                    }
+                    return [{ groupName, score, source: 'Opener' }];
                 }
             }
             return [];
@@ -389,34 +1022,67 @@
     }
 
     class ContentTypeScorer {
+        constructor(weights) {
+            this.weights = weights;
+        }
+        
         propose(tab, allTabs, existingGroups) {
             if (tab.contentType) {
-                return [{ groupName: tab.contentType, score: CONFIG.scoringWeights.contentType, source: 'Content-Type' }];
+                const score = this.weights.contentType;
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.debug(`    📄 ContentTypeScorer: Detected content type "${tab.contentType}" (score: ${score.toFixed(3)})`);
+                }
+                return [{ groupName: tab.contentType, score, source: 'Content-Type' }];
             }
             return [];
         }
     }
 
     class HostnameScorer {
+        constructor(weights) {
+            this.weights = weights;
+        }
+        
         propose(tab, allTabs, existingGroups) {
             if (tab.data.hostname && tab.data.hostname !== 'N/A') {
                 const groupName = processTopic(tab.data.hostname);
-                return [{ groupName, score: CONFIG.scoringWeights.hostname, source: 'Hostname' }];
+                const score = this.weights.hostname;
+                
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.debug(`    🌐 HostnameScorer: Hostname "${tab.data.hostname}" → group "${groupName}" (score: ${score.toFixed(3)})`);
+                }
+                
+                return [{ groupName, score, source: 'Hostname' }];
             }
             return [];
         }
     }
     
     class KeywordScorer {
+        constructor(weights) {
+            this.weights = weights;
+        }
+        
         propose(tab, allTabs, existingGroups) {
             const proposals = [];
-            if (tab.keywords) {
+            if (tab.keywords && tab.keywords.size > 0) {
+                const score = this.weights.keyword;
+                
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.debug(`    🔍 KeywordScorer: Found ${tab.keywords.size} keywords: [${Array.from(tab.keywords).join(', ')}] (score: ${score.toFixed(3)})`);
+                }
+                
                 tab.keywords.forEach(kw => {
+                    const groupName = processTopic(kw);
                     proposals.push({
-                        groupName: processTopic(kw),
-                        score: CONFIG.scoringWeights.keyword,
+                        groupName,
+                        score,
                         source: 'Keyword'
                     });
+                    
+                    if (CONFIG.logging.showDetailedScoring) {
+                        Logger.debug(`      → Keyword "${kw}" → group "${groupName}"`);
+                    }
                 });
             }
             return proposals;
@@ -424,18 +1090,33 @@
     }
     
     class ExistingGroupScorer {
+        constructor(weights) {
+            this.weights = weights;
+        }
+        
         propose(tab, allTabs, existingGroups) {
             const proposals = [];
-            if (!existingGroups) return [];
+            if (!existingGroups || existingGroups.size === 0) {
+                return [];
+            }
 
+            if (CONFIG.logging.showDetailedScoring) {
+                Logger.debug(`    🏷️  ExistingGroupScorer: Checking against ${existingGroups.size} existing groups`);
+            }
+            
             for (const [groupName, groupData] of existingGroups) {
                 const similarity = this.calculateSimilarityToGroup(tab, groupData);
                 if (similarity > 0.4) {
+                    const score = this.weights.existingGroup * similarity;
                     proposals.push({
                         groupName,
-                        score: CONFIG.scoringWeights.existingGroup * similarity,
+                        score,
                         source: 'Existing Group'
                     });
+                    
+                    if (CONFIG.logging.showDetailedScoring) {
+                        Logger.debug(`      → Group "${groupName}": similarity = ${similarity.toFixed(3)}, score = ${score.toFixed(3)}`);
+                    }
                 }
             }
             return proposals;
@@ -444,38 +1125,133 @@
         calculateSimilarityToGroup(tab, groupData) {
             let factors = 0;
             let totalScore = 0;
+            
+            // Check hostname similarity
             if (tab.data.hostname && groupData.commonHostnames?.includes(tab.data.hostname)) {
                 totalScore += 1.0;
                 factors++;
             }
+            
+            // Check content type similarity
             if (tab.contentType && groupData.contentTypes?.includes(tab.contentType)) {
                 totalScore += 1.0;
                 factors++;
             }
+            
+            // Check keyword similarity
             if (tab.keywords && groupData.commonKeywords) {
                 const overlap = [...tab.keywords].filter(kw => groupData.commonKeywords.includes(kw));
                 if (overlap.length > 0) {
-                    totalScore += overlap.length / tab.keywords.size;
+                    const keywordScore = overlap.length / tab.keywords.size;
+                    totalScore += keywordScore;
                     factors++;
                 }
             }
+            
             return factors > 0 ? totalScore / factors : 0;
         }
     }
+
+
+
+    // --- Dynamic Weight Calculation ---
+    
+    const getDynamicWeights = (enrichedTabs, existingGroups) => {
+        if (!CONFIG.dynamicWeights.enabled) {
+            return CONFIG.scoringWeights;
+        }
+        
+        // Apply size-based adjustments
+        let finalWeights = getSizeBasedWeights(enrichedTabs.length);
+        
+        // Apply user behavior adjustments
+        const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+        if (currentWorkspaceId) {
+            const behavior = UserBehaviorAnalyzer.analyzeWorkspaceBehavior(currentWorkspaceId);
+            
+            if (behavior.workPattern === 'work') {
+                finalWeights.contentType *= 1.15; // Content type matters more for work
+                finalWeights.hostname *= 1.10;    // Domain matters more for work
+                finalWeights.aiSuggestion *= 0.95; // AI less needed for work patterns
+            } else {
+                finalWeights.aiSuggestion *= 1.15; // AI better at leisure categorization
+                finalWeights.keyword *= 1.10;      // Keywords matter more for leisure
+            }
+            
+            if (CONFIG.logging.showWeightChanges) {
+                Logger.info(`  🎭 Work Pattern: ${behavior.workPattern}`);
+            }
+        }
+        
+        // Apply content complexity adjustments (average across all tabs)
+        const complexityAdjustments = enrichedTabs.map(et => 
+            ContentComplexityAnalyzer.getComplexityAdjustment(
+                ContentComplexityAnalyzer.analyzeContentComplexity(et.data)
+            )
+        );
+        
+        // Average the adjustments
+        const avgAdjustment = {};
+        Object.keys(finalWeights).forEach(key => {
+            const values = complexityAdjustments.map(adj => adj[key] || 1.0);
+            avgAdjustment[key] = values.reduce((a, b) => a + b, 0) / values.length;
+        });
+        
+        // Apply complexity adjustments
+        Object.keys(finalWeights).forEach(key => {
+            finalWeights[key] *= avgAdjustment[key];
+        });
+        
+        if (CONFIG.logging.showWeightChanges) {
+            Logger.info(`🎯 Dynamic Weights Applied:`);
+            Logger.info(`  Size Profile: ${getSizeProfileName(enrichedTabs.length)} (${enrichedTabs.length} tabs)`);
+            Object.entries(finalWeights).forEach(([key, value]) => {
+                const original = CONFIG.scoringWeights[key];
+                const change = value - original;
+                const changeStr = change > 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
+                Logger.info(`  ${key}: ${original.toFixed(2)} → ${value.toFixed(2)} (${changeStr})`);
+            });
+        }
+        
+        return finalWeights;
+    };
+    
+    const getSizeBasedWeights = (tabCount) => {
+        let profile;
+        if (tabCount <= 5) {
+            profile = CONFIG.dynamicWeights.sizeProfiles.small;
+        } else if (tabCount <= 15) {
+            profile = CONFIG.dynamicWeights.sizeProfiles.medium;
+        } else {
+            profile = CONFIG.dynamicWeights.sizeProfiles.large;
+        }
+        
+        return { ...profile };
+    };
+    
+    const getSizeProfileName = (tabCount) => {
+        if (tabCount <= 5) return 'small';
+        if (tabCount <= 15) return 'medium';
+        return 'large';
+    };
+    
+
 
     // --- Helper Functions ---
   
     const injectStyles = () => {
         let styleElement = document.getElementById('tab-sort-clear-styles');
+        const styles = CONFIG.getStyles();
+        
         if (styleElement) {
-            if (styleElement.textContent !== CONFIG.styles) {
-                styleElement.textContent = CONFIG.styles;
+            if (styleElement.textContent !== styles) {
+                styleElement.textContent = styles;
             }
             return;
         }
         styleElement = Object.assign(document.createElement('style'), {
             id: 'tab-sort-clear-styles',
-            textContent: CONFIG.styles
+            textContent: styles
         });
         document.head.appendChild(styleElement);
     };
@@ -540,7 +1316,7 @@
                 }
             } catch (contentError) { /* ignore */ }
         } catch (e) {
-            console.error('Error getting tab data for tab:', tab, e);
+            Logger.error('Error getting tab data for tab:', tab, e);
             title = 'Error Processing Tab';
         }
         return {
@@ -580,7 +1356,7 @@
             });
         });
         
-        console.log(`Found ${existingGroups.size} existing groups with analysis.`);
+        Logger.debug(`Found ${existingGroups.size} existing groups with analysis.`);
         return existingGroups;
     };
 
@@ -603,7 +1379,7 @@
     const toTitleCase = (str) => {
         if (!str) return "";
         return str.toLowerCase().split(' ').map(word => {
-            if (word.toUpperCase() === 'AI' || word.toUpperCase() === 'XAI' ) return word.toUpperCase();
+            if (word.toUpperCase() === 'AI' || word.toUpperCase() === 'XAI') return word.toUpperCase();
             return word.charAt(0).toUpperCase() + word.slice(1);
         }).join(' ');
     };
@@ -660,7 +1436,7 @@
         try {
             return document.querySelector(selector);
         } catch (e) {
-            console.error(`Error finding group with selector: ${selector}`, e);
+            Logger.error(`Error finding group with selector: ${selector}`, e);
             return null;
         }
     };
@@ -717,7 +1493,7 @@
         getGroupSelector: (workspaceId) => `tab-group:has(tab[zen-workspace-id="${workspaceId}"])`,
         validateWorkspace: (workspaceId) => {
             if (!workspaceId) {
-                console.error("Cannot get current workspace ID.");
+                Logger.error("Cannot get current workspace ID.");
                 return false;
             }
             return true;
@@ -763,7 +1539,7 @@
         const lines = aiText.split('\n').map(line => line.trim()).filter(Boolean);
 
         if (lines.length !== validTabsWithData.length) {
-            console.warn(`Batch AI (${apiName}): Mismatch! Expected ${validTabsWithData.length}, received ${lines.length}. This may be due to API safety filters.`);
+            Logger.warn(`Batch AI (${apiName}): Mismatch! Expected ${validTabsWithData.length}, received ${lines.length}. This may be due to API safety filters.`);
             lines.forEach((line, i) => {
                 if (i < validTabsWithData.length) {
                     const tab = validTabsWithData[i].tab;
@@ -782,12 +1558,53 @@
     const ButtonFactory = {
         createButton: (id, command, label, tooltip) => {
             try {
-                const fragment = window.MozXULElement.parseXULToFragment(
-                    `<toolbarbutton id="${id}" command="${command}" label="${label}" tooltiptext="${tooltip}"/>`
-                );
-                return fragment.firstChild.cloneNode(true);
+                if (id === 'sort-button') {
+                    // Broom + Sort text
+                    const buttonFragment = window.MozXULElement.parseXULToFragment(`
+                        <toolbarbutton
+                            id="sort-button"
+                            class="sort-button-with-icon"
+                            command="cmd_zenSortTabs"
+                            tooltiptext="${tooltip}">
+                            <hbox class="toolbarbutton-box" align="center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 28 28" class="broom-icon">
+                                    <g>
+                                        <path d="M19.9132 21.3765C19.8875 21.0162 19.6455 20.7069 19.3007 20.5993L7.21755 16.8291C6.87269 16.7215 6.49768 16.8384 6.27165 17.1202C5.73893 17.7845 4.72031 19.025 3.78544 19.9965C2.4425 21.392 3.01177 22.4772 4.66526 22.9931C4.82548 23.0431 5.78822 21.7398 6.20045 21.7398C6.51906 21.8392 6.8758 23.6828 7.26122 23.8031C7.87402 23.9943 8.55929 24.2081 9.27891 24.4326C9.59033 24.5298 10.2101 23.0557 10.5313 23.1559C10.7774 23.2327 10.7236 24.8834 10.9723 24.961C11.8322 25.2293 12.699 25.4997 13.5152 25.7544C13.868 25.8645 14.8344 24.3299 15.1637 24.4326C15.496 24.5363 15.191 26.2773 15.4898 26.3705C16.7587 26.7664 17.6824 27.0546 17.895 27.1209C19.5487 27.6369 20.6333 27.068 20.3226 25.1563C20.1063 23.8255 19.9737 22.2258 19.9132 21.3765Z" fill="currentColor" stroke="none"/>
+                                        <path d="M16.719 1.7134C17.4929-0.767192 20.7999 0.264626 20.026 2.74523C19.2521 5.22583 18.1514 8.75696 17.9629 9.36C17.7045 10.1867 16.1569 15.1482 15.899 15.9749L19.2063 17.0068C20.8597 17.5227 20.205 19.974 18.4514 19.4268L8.52918 16.331C6.87208 15.8139 7.62682 13.3938 9.28426 13.911L12.5916 14.9429C12.8495 14.1163 14.3976 9.15491 14.6555 8.32807C14.9135 7.50122 15.9451 4.19399 16.719 1.7134Z" fill="currentColor" stroke="none"/>
+                                    </g>
+                                </svg>
+                                <label class="toolbarbutton-text" value="Sort" crop="right"/>
+                            </hbox>
+                        </toolbarbutton>
+                    `);
+                    return buttonFragment.firstChild.cloneNode(true);
+                } else if (id === 'clear-button') {
+                    // Down arrow + Clear text (with line)
+                    const buttonFragment = window.MozXULElement.parseXULToFragment(`
+                        <toolbarbutton
+                            id="clear-button"
+                            class="clear-button-with-icon"
+                            command="cmd_zenClearTabs"
+                            tooltiptext="${tooltip}">
+                            <hbox class="toolbarbutton-box" align="center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" class="down-arrow-icon">
+                                  <path d="M8 3v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                  <path d="M5 10l3 3 3-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <label class="toolbarbutton-text" value="Clear" crop="right"/>
+                            </hbox>
+                        </toolbarbutton>
+                    `);
+                    return buttonFragment.firstChild.cloneNode(true);
+                } else {
+                    // Fallback for any other button
+                    const fragment = window.MozXULElement.parseXULToFragment(
+                        `<toolbarbutton id=\"${id}\" command=\"${command}\" label=\"${label}\" tooltiptext=\"${tooltip}\"/>`
+                    );
+                    return fragment.firstChild.cloneNode(true);
+                }
             } catch (e) {
-                console.error(`BUTTONS: Error creating ${id}:`, e);
+                Logger.error(`BUTTONS: Error creating ${id}:`, e);
                 return null;
             }
         },
@@ -795,11 +1612,11 @@
         ensureButtonsExist: (container) => {
             if (!container) return;
             if (!container.querySelector('#sort-button')) {
-                const sortButton = ButtonFactory.createButton('sort-button', 'cmd_zenSortTabs', '⇅ Sort', 'Sort Tabs into Groups');
+                const sortButton = ButtonFactory.createButton('sort-button', 'cmd_zenSortTabs', '', 'Sort Tabs into Groups');
                 if (sortButton) container.appendChild(sortButton);
             }
             if (!container.querySelector('#clear-button')) {
-                const clearButton = ButtonFactory.createButton('clear-button', 'cmd_zenClearTabs', '↓ Clear', 'Close ungrouped, non-pinned tabs');
+                const clearButton = ButtonFactory.createButton('clear-button', 'cmd_zenClearTabs', 'Clear', 'Close ungrouped, non-pinned tabs');
                 if (clearButton) container.appendChild(clearButton);
             }
         }
@@ -854,7 +1671,7 @@
                     } else if (finishReason) {
                         reason = `Generation finished unexpectedly. Reason: ${finishReason}`;
                     }
-                    console.error("Gemini API Error:", reason, data);
+                    Logger.error("Gemini API Error:", reason, data);
                     throw new Error(`Gemini API Error: ${reason}`);
                 }
                 return processAIResponse(aiText, validTabsWithData, "Gemini");
@@ -862,7 +1679,7 @@
                 throw new Error("No AI API is enabled in the configuration.");
             }
         } catch (error) {
-            console.error(`Batch AI (${apiChoice}): Error getting topics:`, error);
+            Logger.error(`Batch AI (${apiChoice}): Error getting topics:`, error);
             const fallbackResults = new Map();
             validTabsWithData.forEach(item => fallbackResults.set(item.tab, "Uncategorized"));
             return fallbackResults;
@@ -878,7 +1695,7 @@
     // --- MAIN SORTING FUNCTION ---
     const sortTabsByTopic = async () => {
         if (isSorting) {
-            console.log("Sorting already in progress.");
+            Logger.info("Sorting already in progress.");
             return;
         }
         isSorting = true;
@@ -886,12 +1703,18 @@
         const selectedTabs = gBrowser.selectedTabs;
         const isSortingSelectedTabs = selectedTabs.length > 1;
         const actionType = isSortingSelectedTabs ? "selected tabs" : "all ungrouped tabs";
-        console.log(`\n🚀 === STARTING WEIGHT-BASED TAB SORT (${actionType} mode) - v5.2.4 ===`);
+        Logger.info(`\n🚀 === STARTING WEIGHT-BASED TAB SORT (${actionType} mode) - v5.4.0 ===`);
         let separatorsToSort = [];
 
         try {
             separatorsToSort = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
             if (separatorsToSort.length > 0) separatorsToSort.forEach(sep => sep.classList.add('separator-is-sorting'));
+            
+            // Add brushing animation to sort button
+            const sortButton = document.querySelector('#sort-button');
+            if (sortButton) {
+                sortButton.classList.add('brushing');
+            }
 
             const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
             if (!WorkspaceUtils.validateWorkspace(currentWorkspaceId)) { isSorting = false; return; }
@@ -903,7 +1726,7 @@
                 TabFilters.getUngroupedTabs(currentWorkspaceId);
 
             if (rawTabsToConsider.length === 0) {
-                console.log(`No tabs to sort in workspace. Exiting.`);
+                Logger.info(`No tabs to sort in workspace. Exiting.`);
                 isSorting = false; return;
             }
 
@@ -917,7 +1740,7 @@
                     openerTab: tab.openerTab
                 };
             });
-            console.log(`📋 Found and enriched ${enrichedTabs.length} tabs to process.`);
+            Logger.info(`📋 Found and enriched ${enrichedTabs.length} tabs to process.`);
 
             let finalGroups = {};
 
@@ -936,17 +1759,17 @@
                     enrichedTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
                     [...existingGroups.keys()]
                 );
-                console.log(`🤖 Received ${aiResults.size} initial AI suggestions to use as a scoring signal.`);
+                Logger.info(`🤖 Received ${aiResults.size} initial AI suggestions to use as a scoring signal.`);
 
                 const engine = new TabGroupingEngine(enrichedTabs, existingGroups);
                 engine.generateProposals({ aiResults });
                 const { finalGroups: firstPassGroups, leftoverTabs } = engine.resolveGroupAssignments();
                 
                 finalGroups = firstPassGroups;
-
+                
                 // --- Step 3: Second Pass for Leftovers ---
                 if (leftoverTabs.length > 0) {
-                    console.log(`--- Second Pass: Grouping ${leftoverTabs.length} Leftover Tabs ---`);
+                    Logger.info(`--- Second Pass: Grouping ${leftoverTabs.length} Leftover Tabs ---`);
                     const secondPassAiResults = await askAIForMultipleTopics(
                         leftoverTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
                         [...existingGroups.keys(), ...Object.keys(finalGroups)] // Provide full context
@@ -957,14 +1780,14 @@
                             if (!finalGroups[topic]) finalGroups[topic] = [];
                             finalGroups[topic].push(tab);
                             const tabData = enrichedTabs.find(et => et.tab === tab)?.data;
-                            console.log(`✨ AI (2nd Pass) assigned "${tabData?.title || 'Unknown Tab'}" to group "${topic}"`);
+                            Logger.debug(`✨ AI (2nd Pass) assigned "${tabData?.title || 'Unknown Tab'}" to group "${topic}"`);
                         }
                     });
                 }
             }
 
             // --- Step 4: Consolidate & Create Groups ---
-            console.log(" -> Consolidating group names (Levenshtein)...");
+            Logger.debug(" -> Consolidating group names (Levenshtein)...");
             const originalKeys = Object.keys(finalGroups);
             const mergedKeys = new Set();
             const consolidationMap = {};
@@ -992,7 +1815,7 @@
                              [canonicalKey, mergedKeyVal] = keyA.length <= keyB.length ? [keyA, keyB] : [keyB, keyA];
                          }
 
-                        console.log(`    - Consolidating: Merging "${mergedKeyVal}" into "${canonicalKey}" (Distance: ${distance})`);
+                        Logger.debug(`    - Consolidating: Merging "${mergedKeyVal}" into "${canonicalKey}" (Distance: ${distance})`);
                         if (finalGroups[mergedKeyVal]) {
                             if (!finalGroups[canonicalKey]) finalGroups[canonicalKey] = [];
                             finalGroups[canonicalKey].push(...finalGroups[mergedKeyVal]);
@@ -1008,8 +1831,10 @@
                 }
             }
             
-            console.log("\n🎯 === FINAL GROUPING RESULTS ===");
-            console.log(" -> Final groups for action:", Object.keys(finalGroups).map(k => `${k} (${finalGroups[k]?.length ?? 0})`).join('; ') || "None");
+            if (CONFIG.logging.showGroupingResults) {
+                Logger.info("\n🎯 === FINAL GROUPING RESULTS ===");
+                Logger.info(" -> Final groups for action:", Object.keys(finalGroups).map(k => `${k} (${finalGroups[k]?.length ?? 0})`).join('; ') || "None");
+            }
             
             const existingGroupElementsMap = new Map();
             document.querySelectorAll(WorkspaceUtils.getGroupSelector(currentWorkspaceId)).forEach(el => {
@@ -1024,23 +1849,51 @@
                 const existingEl = existingGroupElementsMap.get(topic) || findGroupElement(topic, currentWorkspaceId);
 
                 if (existingEl?.isConnected) {
-                    console.log(` -> Moving ${tabsForThisTopic.length} tabs to existing group "${topic}".`);
-                    gBrowser.moveTabsToGroup(tabsForThisTopic, existingEl);
+                    if (CONFIG.logging.showGroupingResults) {
+                        Logger.info(` -> Moving ${tabsForThisTopic.length} tabs to existing group "${topic}".`);
+                    }
+                    // Use a loop, as moveTabToGroup handles one tab at a time.
+                    for (const tab of tabsForThisTopic) {
+                        if (tab?.isConnected) {
+                            // Only move the tab if it's not already in the target group
+                            if (tab.closest('tab-group') !== existingEl) {
+                                try {
+                                    gBrowser.moveTabToGroup(tab, existingEl);
+                                } catch (e) {
+                                    Logger.error(`Error moving tab "${tab.label}" to group "${topic}":`, e);
+                                }
+                            }
+                        }
+                    }
                 } else {
-                    console.log(` -> Creating new group "${topic}" with ${tabsForThisTopic.length} tabs.`);
+                    // This part for creating new groups was correct.
+                    if (CONFIG.logging.showGroupingResults) {
+                        Logger.info(` -> Creating new group "${topic}" with ${tabsForThisTopic.length} tabs.`);
+                    }
+                    try {
                     const groupOpts = { label: topic, color: getNextGroupColor(), insertBefore: tabsForThisTopic[0] };
                     gBrowser.addTabGroup(tabsForThisTopic, groupOpts);
+                    } catch (e) {
+                        Logger.error(`Error creating new group "${topic}":`, e);
+                    }
                 }
             }
-            console.log("--- Tab sorting process complete ---");
+            Logger.info("--- Tab sorting process complete ---");
 
         } catch (error) {
-            console.error("Error during overall sorting process:", error);
+            Logger.error("Error during overall sorting process:", error);
         } finally {
             isSorting = false;
             if (separatorsToSort.length > 0) separatorsToSort.forEach(sep => {
                 if (sep?.isConnected) sep.classList.remove('separator-is-sorting');
             });
+            
+            // Remove brushing animation from sort button
+            const sortButton = document.querySelector('#sort-button');
+            if (sortButton) {
+                sortButton.classList.remove('brushing');
+            }
+            
             setTimeout(() => {
                 Array.from(gBrowser.tabs).forEach(t => {
                     if (t?.isConnected) t.classList.remove('tab-is-sorting');
@@ -1051,7 +1904,7 @@
   
     // --- Clear Tabs Functionality ---
     const clearTabs = () => {
-        console.log("Clearing tabs...");
+        Logger.info("Clearing tabs...");
         let closedCount = 0;
         try {
             const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
@@ -1060,10 +1913,10 @@
             }
             const tabsToClose = TabFilters.getClearableTabs(currentWorkspaceId);
             if (tabsToClose.length === 0) {
-                console.log("CLEAR BTN: No ungrouped, non-pinned, non-active tabs to clear.");
+                Logger.info("CLEAR BTN: No ungrouped, non-pinned, non-active tabs to clear.");
                 return;
             }
-            console.log(`CLEAR BTN: Closing ${tabsToClose.length} tabs.`);
+            Logger.info(`CLEAR BTN: Closing ${tabsToClose.length} tabs.`);
             tabsToClose.forEach(tab => {
                 tab.classList.add('tab-closing');
                 closedCount++;
@@ -1076,16 +1929,16 @@
                                 closeWindowWithLastTab: false
                             });
                         } catch (removeError) {
-                            console.warn(`CLEAR BTN: Error removing tab: ${removeError}`, tab);
-                            if(tab?.isConnected) tab.classList.remove('tab-closing');
+                            Logger.warn(`CLEAR BTN: Error removing tab: ${removeError}`, tab);
+                            if (tab?.isConnected) tab.classList.remove('tab-closing');
                         }
                     }
                 }, 500);
             });
         } catch (error) {
-            console.error("CLEAR BTN: Error during tab clearing:", error);
+            Logger.error("CLEAR BTN: Error during tab clearing:", error);
         } finally {
-            console.log(`CLEAR BTN: Initiated closing for ${closedCount} tabs.`);
+            Logger.info(`CLEAR BTN: Initiated closing for ${closedCount} tabs.`);
         }
     };
   
@@ -1100,30 +1953,30 @@
         else {
             const periphery = document.querySelector('#tabbrowser-arrowscrollbox-periphery');
             if (periphery && !periphery.querySelector('#sort-button') && !periphery.querySelector('#clear-button')) {
-                console.warn("BUTTONS: No separators found, fallback to periphery.");
+                Logger.warn("BUTTONS: No separators found, fallback to periphery.");
                 ensureButtonsExist(periphery);
-            } else if (!periphery) console.error("BUTTONS: No separators or fallback container found.");
+            } else if (!periphery) Logger.error("BUTTONS: No separators or fallback container found.");
         }
     }
   
     function setupCommandsAndListener() {
         const zenCommands = document.querySelector("commandset#zenCommandSet");
         if (!zenCommands) {
-            console.error("BUTTONS INIT: Could not find 'commandset#zenCommandSet'.");
+            Logger.error("BUTTONS INIT: Could not find 'commandset#zenCommandSet'.");
             return;
         }
         if (!zenCommands.querySelector("#cmd_zenSortTabs")) {
             try {
                 zenCommands.appendChild(window.MozXULElement.parseXULToFragment(`<command id="cmd_zenSortTabs"/>`).firstChild);
             } catch (e) {
-                console.error("BUTTONS INIT: Error adding 'cmd_zenSortTabs':", e);
+                Logger.error("BUTTONS INIT: Error adding 'cmd_zenSortTabs':", e);
             }
         }
         if (!zenCommands.querySelector("#cmd_zenClearTabs")) {
             try {
                 zenCommands.appendChild(window.MozXULElement.parseXULToFragment(`<command id="cmd_zenClearTabs"/>`).firstChild);
             } catch (e) {
-                console.error("BUTTONS INIT: Error adding 'cmd_zenClearTabs':", e);
+                Logger.error("BUTTONS INIT: Error adding 'cmd_zenClearTabs':", e);
             }
         }
         if (!commandListenerAdded) {
@@ -1133,16 +1986,16 @@
                     else if (event.target.id === "cmd_zenClearTabs") clearTabs();
                 });
                 commandListenerAdded = true;
-                console.log("BUTTONS INIT: Command listener added.");
+                Logger.info("BUTTONS INIT: Command listener added.");
             } catch (e) {
-                console.error("BUTTONS INIT: Error adding command listener:", e);
+                Logger.error("BUTTONS INIT: Error adding command listener:", e);
             }
         }
     }
   
     function setupZenWorkspaceHooks() {
         if (typeof gZenWorkspaces === 'undefined') {
-            console.warn("BUTTONS: gZenWorkspaces not found. Skipping hooks.");
+            Logger.warn("BUTTONS: gZenWorkspaces not found. Skipping hooks.");
             return;
         }
         if (typeof gZenWorkspaces.originalHooks?.customSortClearApplied) return;
@@ -1159,7 +2012,7 @@
                 try {
                     gZenWorkspaces.originalHooks.onTabBrowserInserted.call(gZenWorkspaces, event);
                 } catch (e) {
-                    console.error("HOOK: Error in original onTabBrowserInserted:", e);
+                    Logger.error("HOOK: Error in original onTabBrowserInserted:", e);
                 }
             }
             setTimeout(addButtonsToAllSeparators, 150);
@@ -1169,16 +2022,16 @@
                 try {
                     gZenWorkspaces.originalHooks.updateTabsContainers.apply(gZenWorkspaces, args);
                 } catch (e) {
-                    console.error("HOOK: Error in original updateTabsContainers:", e);
+                    Logger.error("HOOK: Error in original updateTabsContainers:", e);
                 }
             }
             setTimeout(addButtonsToAllSeparators, 150);
         };
-        console.log("BUTTONS HOOK: gZenWorkspaces hooks applied for Sort & Clear.");
+        Logger.info("BUTTONS HOOK: gZenWorkspaces hooks applied for Sort & Clear.");
     }
   
     function initializeScript() {
-        console.log("INIT: Sort & Clear Tabs Script (v5.2.4) loading...");
+        Logger.info("INIT: Sort & Clear Tabs Script (v5.5.0) loading...");
         let checkCount = 0;
         const maxChecks = 30;
         const checkInterval = 1000;
@@ -1192,24 +2045,29 @@
             const ready = gBReady && cmdSetExists && (sepExists || periphExists) && gZWReady;
   
             if (ready) {
-                console.log(`INIT: Required elements found after ${checkCount} checks. Initializing...`);
+                Logger.info(`INIT: Required elements found after ${checkCount} checks. Initializing...`);
                 clearInterval(initCheckInterval);
                 const finalSetup = () => {
                     try {
+                        // Initialize tracking systems
+                        TabCreationTracker.init();
+                        UserBehaviorAnalyzer.init();
+                        
                         injectStyles();
                         setupCommandsAndListener();
                         addButtonsToAllSeparators();
                         setupZenWorkspaceHooks();
-                        console.log("INIT: Sort & Clear Button setup and hooks complete.");
+                        Logger.info("INIT: Sort & Clear Button setup and hooks complete.");
+                        Logger.info("INIT: Enhanced tracking systems initialized.");
                     } catch (e) {
-                        console.error("INIT: Error during deferred final setup:", e);
+                        Logger.error("INIT: Error during deferred final setup:", e);
                     }
                 };
                 if ('requestIdleCallback' in window) requestIdleCallback(finalSetup, { timeout: 2000 });
                 else setTimeout(finalSetup, 500);
             } else if (checkCount > maxChecks) {
                 clearInterval(initCheckInterval);
-                console.error(`INIT: Failed to find required elements after ${maxChecks} checks.`);
+                Logger.error(`INIT: Failed to find required elements after ${maxChecks} checks.`);
             }
         }, checkInterval);
     }
@@ -1219,5 +2077,53 @@
     } else {
         window.addEventListener("load", initializeScript, { once: true });
     }
+    
+    // Global test functions - run these in console to test auto-sort
+    window.testTabAutoSort = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            TabCreationTracker.testAutoSort();
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.testTabListeners = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            TabCreationTracker.testListeners();
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    // Debug function to check current auto-sort state
+    window.debugAutoSort = () => {
+        const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+        const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
+        const existingGroups = analyzeExistingGroups(currentWorkspaceId);
+        
+        console.log('🔍 Auto-Sort Debug Info:');
+        console.log(`  Current Workspace: ${currentWorkspaceId}`);
+        console.log(`  Ungrouped Tabs: ${ungroupedTabs.length}`);
+        console.log(`  Existing Groups: ${existingGroups.size}`);
+        console.log(`  Auto-sort enabled: ${CONFIG.autoSortNewTabs.enabled}`);
+        console.log(`  Max tabs to sort: ${CONFIG.autoSortNewTabs.maxTabsToSort}`);
+        console.log(`  Min tabs for new group: ${CONFIG.thresholds.minTabsForNewGroup}`);
+        
+        if (ungroupedTabs.length > 0) {
+            console.log('  Ungrouped tab details:');
+            ungroupedTabs.forEach((tab, i) => {
+                const title = tab.getAttribute('label') || 'Unknown';
+                const hostname = tab.linkedBrowser?.currentURI?.host || 'N/A';
+                console.log(`    ${i + 1}. "${title}" (${hostname}) - ID: ${tab.id}`);
+            });
+        }
+        
+        if (existingGroups.size > 0) {
+            console.log('  Existing groups:');
+            existingGroups.forEach((groupData, groupName) => {
+                console.log(`    "${groupName}": ${groupData.tabs.length} tabs`);
+            });
+        }
+    };
   
 })();

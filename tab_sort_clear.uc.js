@@ -1,4 +1,4 @@
-// VERSION 5.6.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
+// VERSION 6.0.0 - Weights, Scorers, AutoSorting, AI-Only Mode.
 (() => {
     // --- Configuration ---
     const CONFIG = {

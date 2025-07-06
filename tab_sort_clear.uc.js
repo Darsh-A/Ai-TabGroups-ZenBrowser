@@ -19,8 +19,6 @@
         autoSortNewTabs: {
             enabled: true, // << --- Set to false to disable auto-sorting
             delay: 1000, // Wait 1 second after tab creation before sorting
-            maxTabsToSort: 10, // Only auto-sort if 10 or fewer tabs are being sorted
-            requireUserActivity: true // Only auto-sort if user has interacted with the tab
         },
         
         // Button visibility settings
@@ -113,7 +111,7 @@
             gemini: {
                 enabled: true,
                 apiKey: '', // <<<--- PASTE YOUR KEY HERE --- >>>
-                model: 'gemini-1.5-flash-latest',
+                model: 'gemini-2.0-flash',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
                 generationConfig: {
                     temperature: 0.1,
@@ -548,63 +546,35 @@
                 return;
             }
             
-            // Check if user activity is required
-            if (CONFIG.autoSortNewTabs.requireUserActivity) {
-                const hasUserActivity = this.checkUserActivity(newTab);
-                Logger.info(`🤖 Auto-sort: User activity check for tab ${newTab.id}: ${hasUserActivity}`);
-                if (!hasUserActivity) {
-                    Logger.warn(`⏳ Waiting for user activity on tab ${newTab.id}`);
-                    return;
-                }
-            }
-            
-            // Get ungrouped tabs in current workspace
-            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
-            Logger.info(`🤖 Auto-sort: Found ${ungroupedTabs.length} ungrouped tabs in workspace`);
-            
-            // Only auto-sort if we have a reasonable number of tabs
-            if (ungroupedTabs.length > CONFIG.autoSortNewTabs.maxTabsToSort) {
-                Logger.warn(`⚠️ Too many ungrouped tabs (${ungroupedTabs.length}), skipping auto-sort`);
-                return;
-            }
-            
-            // For auto-sort, be more aggressive about grouping even single tabs
-            Logger.info(`🤖 Auto-sort: Processing ${ungroupedTabs.length} ungrouped tabs`);
-            Logger.info(`🤖 Auto-sort: Tab details: ${ungroupedTabs.map(t => `"${t.getAttribute('label') || 'Unknown'}" (${t.id})`).join(', ')}`);
-            
-            Logger.info(`🤖 Auto-sorting ${ungroupedTabs.length} tabs including newly created tab`);
+            // Check if the new tab is already in a group
+            const isInGroup = newTab.closest('tab-group') !== null;
+            Logger.info(`🤖 Auto-sort: Tab ${newTab.id} is ${isInGroup ? 'already grouped' : 'ungrouped'}`);
             
             try {
-                // Add visual indicator for auto-sorting
-                ungroupedTabs.forEach(tab => {
-                    if (tab.isConnected) {
-                        tab.classList.add('tab-auto-sorting');
-                    }
-                });
+                // Add visual indicator for auto-sorting on the new tab only
+                if (newTab.isConnected) {
+                    newTab.classList.add('tab-auto-sorting');
+                }
                 
-                Logger.info(`🤖 Auto-sort: Starting sorting process...`);
-                // Use the existing sorting logic but only for ungrouped tabs
-                await sortTabsByTopic();
+                Logger.info(`🤖 Auto-sort: Starting sorting process for NEW TAB ONLY...`);
+                // Use the existing sorting logic with auto-sort flag and pass the new tab
+                await sortTabsByTopic(true, newTab);
                 Logger.info(`🤖 Auto-sort: Sorting process completed`);
                 
                 // Remove visual indicator
                 setTimeout(() => {
-                    ungroupedTabs.forEach(tab => {
-                        if (tab.isConnected) {
-                            tab.classList.remove('tab-auto-sorting');
-                        }
-                    });
+                    if (newTab.isConnected) {
+                        newTab.classList.remove('tab-auto-sorting');
+                    }
                 }, 1000);
                 
             } catch (error) {
                 Logger.error("Auto-sort failed:", error);
                 
                 // Remove visual indicator on error
-                ungroupedTabs.forEach(tab => {
-                    if (tab.isConnected) {
-                        tab.classList.remove('tab-auto-sorting');
-                    }
-                });
+                if (newTab.isConnected) {
+                    newTab.classList.remove('tab-auto-sorting');
+                }
             }
         },
         
@@ -641,6 +611,8 @@
             const age = this.getOpenerRelationshipAge(tabId);
             return age && age < CONFIG.dynamicWeights.openerTimeTracking.recentThreshold;
         },
+        
+
         
         // Test function to manually trigger auto-sort
         testAutoSort() {
@@ -1693,7 +1665,7 @@
     };
   
     // --- MAIN SORTING FUNCTION ---
-    const sortTabsByTopic = async () => {
+    const sortTabsByTopic = async (isAutoSortForNewTab = false, newTab = null) => {
         if (isSorting) {
             Logger.info("Sorting already in progress.");
             return;
@@ -1702,7 +1674,7 @@
         tabDataCache.clear();
         const selectedTabs = gBrowser.selectedTabs;
         const isSortingSelectedTabs = selectedTabs.length > 1;
-        const actionType = isSortingSelectedTabs ? "selected tabs" : "all ungrouped tabs";
+        const actionType = isAutoSortForNewTab ? "auto-sort for new tab" : (isSortingSelectedTabs ? "selected tabs" : "all ungrouped tabs");
         Logger.info(`\n🚀 === STARTING WEIGHT-BASED TAB SORT (${actionType} mode) - v5.4.0 ===`);
         let separatorsToSort = [];
 
@@ -1721,9 +1693,22 @@
 
             // --- Step 1: Analyze Environment & Enrich Tabs ---
             const existingGroups = analyzeExistingGroups(currentWorkspaceId);
-            let rawTabsToConsider = isSortingSelectedTabs ?
-                TabFilters.getSelectedTabsForWorkspace(selectedTabs, currentWorkspaceId) :
-                TabFilters.getUngroupedTabs(currentWorkspaceId);
+            let rawTabsToConsider;
+            
+            if (isAutoSortForNewTab && newTab) {
+                // For auto-sort, use the passed new tab directly
+                if (newTab.isConnected) {
+                    rawTabsToConsider = [newTab];
+                    Logger.info(`🤖 Auto-sort: Processing only the newly created tab "${newTab.getAttribute('label') || 'Unknown'}" (${newTab.id})`);
+                } else {
+                    Logger.warn(`🤖 Auto-sort: New tab is no longer connected, falling back to ungrouped tabs`);
+                    rawTabsToConsider = TabFilters.getUngroupedTabs(currentWorkspaceId);
+                }
+            } else {
+                rawTabsToConsider = isSortingSelectedTabs ?
+                    TabFilters.getSelectedTabsForWorkspace(selectedTabs, currentWorkspaceId) :
+                    TabFilters.getUngroupedTabs(currentWorkspaceId);
+            }
 
             if (rawTabsToConsider.length === 0) {
                 Logger.info(`No tabs to sort in workspace. Exiting.`);

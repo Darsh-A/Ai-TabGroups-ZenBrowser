@@ -1,4 +1,4 @@
-// VERSION 6.0.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
+// VERSION 6.1.0 - Added hostname > subdomain scoring and keyword lev-dist merging
 (() => {
     // --- Configuration ---
     const CONFIG = {
@@ -39,10 +39,10 @@
         scoringWeights: {
             existingGroup: 0.90,
             opener: 0.85,
+            keyword: 0.85,  // High priority - titles have more context
             contentType: 0.80,
-            hostname: 0.75,
-            aiSuggestion: 0.70,
-            keyword: 0.60
+            hostname: 0.70, // Reduced from 0.75 - URLs less important than titles
+            aiSuggestion: 0.70
         },
 
         // --- Dynamic Weight Adaptation ---
@@ -52,28 +52,28 @@
             // Size-based weight profiles
             sizeProfiles: {
                 small: { // 1-5 tabs
-                    hostname: 0.90,
+                    keyword: 0.90,  // Highest priority - titles have most context
+                    hostname: 0.80, // Reduced priority
                     contentType: 0.85,
                     aiSuggestion: 0.80,
                     opener: 0.75,
-                    existingGroup: 0.70,
-                    keyword: 0.60
+                    existingGroup: 0.70
                 },
                 medium: { // 6-15 tabs
                     existingGroup: 0.90,
+                    keyword: 0.85,  // High priority for title-based grouping
                     opener: 0.85,
-                    hostname: 0.80,
+                    hostname: 0.75, // Reduced priority
                     contentType: 0.75,
-                    aiSuggestion: 0.70,
-                    keyword: 0.60
+                    aiSuggestion: 0.70
                 },
                 large: { // 16+ tabs
                     existingGroup: 0.90,
+                    keyword: 0.85,  // High priority for title-based grouping
+                    hostname: 0.80, // Reduced priority
                     aiSuggestion: 0.75,
-                    hostname: 0.85,
                     contentType: 0.75,
-                    opener: 0.70,
-                    keyword: 0.60
+                    opener: 0.70
                 }
             },
             
@@ -109,6 +109,9 @@
             'developer.mozilla.org': 'MDN Web Docs',
             'mdn': 'MDN Web Docs',
             'pinterest.com': 'Pinterest',
+            'js': 'JavaScript',
+            'py': 'Python',
+            'JS': 'JavaScript',
         },
   
         apiConfig: {
@@ -119,7 +122,7 @@
             },
             gemini: {
                 enabled: true,
-                apiKey: 'AIzaSyBdnq2WFCAkSOsI63QZqYoCICDrqZZUinc', // <<<--- PASTE YOUR KEY HERE --- >>>
+                apiKey: '', // <<<--- PASTE YOUR KEY HERE --- >>>
                 model: 'gemini-2.0-flash',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
                 generationConfig: {
@@ -1223,6 +1226,15 @@
         }
     }
 
+    // Helper to extract main domain (second-level + top-level)
+    function getMainDomain(hostname) {
+        if (!hostname) return hostname;
+        const parts = hostname.split('.');
+        if (parts.length <= 2) return hostname; // already main domain
+        // Handles cases like a.b.c.domain.com -> domain.com
+        return parts.slice(-2).join('.');
+    }
+
     class HostnameScorer {
         constructor(weights) {
             this.weights = weights;
@@ -1230,9 +1242,10 @@
         
         propose(tab, allTabs, existingGroups) {
             if (tab.data.hostname && tab.data.hostname !== 'N/A') {
-                const groupName = processTopic(tab.data.hostname);
+                // Use only the main domain for grouping
+                const mainDomain = getMainDomain(tab.data.hostname);
+                const groupName = processTopic(mainDomain);
                 const score = this.weights.hostname;
-                
                 return [{ groupName, score, source: 'Hostname' }];
             }
             return [];
@@ -1248,8 +1261,26 @@
             const proposals = [];
             if (tab.keywords && tab.keywords.size > 0) {
                 const score = this.weights.keyword;
-                
-                tab.keywords.forEach(kw => {
+                // Fuzzy merge keywords for this tab
+                const tabKeywords = Array.from(tab.keywords);
+                const mergedTabKeywords = [];
+                const used = new Set();
+                for (let i = 0; i < tabKeywords.length; i++) {
+                    if (used.has(tabKeywords[i])) continue;
+                    let group = [tabKeywords[i]];
+                    used.add(tabKeywords[i]);
+                    for (let j = i + 1; j < tabKeywords.length; j++) {
+                        if (used.has(tabKeywords[j])) continue;
+                        if (levenshteinDistance(tabKeywords[i], tabKeywords[j]) <= 4) {
+                            group.push(tabKeywords[j]);
+                            used.add(tabKeywords[j]);
+                        }
+                    }
+                    // Use the shortest keyword as canonical
+                    group.sort((a, b) => a.length - b.length);
+                    mergedTabKeywords.push(group[0]);
+                }
+                mergedTabKeywords.forEach(kw => {
                     const groupName = processTopic(kw);
                     proposals.push({
                         groupName,
@@ -1511,15 +1542,39 @@
 
     const extractCommonKeywords = (titles) => {
         const keywordCounts = new Map();
+        let allKeywords = [];
         titles.forEach(title => {
             const keywords = extractTitleKeywords(title);
             keywords.forEach(keyword => {
                 keywordCounts.set(keyword, (keywordCounts.get(keyword) || 0) + 1);
+                allKeywords.push(keyword);
             });
         });
-        
+        // Fuzzy merge keywords using Levenshtein distance (threshold 4)
+        const mergedKeywords = [];
+        const used = new Set();
+        for (let i = 0; i < allKeywords.length; i++) {
+            if (used.has(allKeywords[i])) continue;
+            let group = [allKeywords[i]];
+            used.add(allKeywords[i]);
+            for (let j = i + 1; j < allKeywords.length; j++) {
+                if (used.has(allKeywords[j])) continue;
+                if (levenshteinDistance(allKeywords[i], allKeywords[j]) <= 4) {
+                    group.push(allKeywords[j]);
+                    used.add(allKeywords[j]);
+                }
+            }
+            // Use the most common/shortest keyword as the canonical
+            group.sort((a, b) => (keywordCounts.get(b) - keywordCounts.get(a)) || (a.length - b.length));
+            mergedKeywords.push(group[0]);
+        }
+        // Count merged keywords
+        const mergedCounts = new Map();
+        mergedKeywords.forEach(k => {
+            mergedCounts.set(k, (mergedCounts.get(k) || 0) + 1);
+        });
         const threshold = Math.max(1, Math.floor(titles.length * 0.4));
-        return Array.from(keywordCounts.entries())
+        return Array.from(mergedCounts.entries())
             .filter(([_, count]) => count >= threshold)
             .sort((a, b) => b[1] - a[1])
             .map(([keyword]) => keyword);

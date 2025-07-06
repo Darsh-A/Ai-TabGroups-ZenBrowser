@@ -1,4 +1,4 @@
-// VERSION 5.6.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
+// VERSION 6.0.0 - Auto-Sort New Tabs with Enhanced Dynamic Weight System
 (() => {
     // --- Configuration ---
     const CONFIG = {
@@ -18,7 +18,7 @@
         // without requiring manual button clicks
         autoSortNewTabs: {
             enabled: true, // << --- Set to false to disable auto-sorting
-            delay: 1000, // Wait 1 second after tab creation before sorting
+            delay: 2000, // Wait 1 second after tab creation before sorting
             maxTabsToSort: 10, // Maximum number of tabs to consider for auto-sort mode
         },
         
@@ -119,7 +119,7 @@
             },
             gemini: {
                 enabled: true,
-                apiKey: '', // <<<--- PASTE YOUR KEY HERE --- >>>
+                apiKey: 'AIzaSyBdnq2WFCAkSOsI63QZqYoCICDrqZZUinc', // <<<--- PASTE YOUR KEY HERE --- >>>
                 model: 'gemini-2.0-flash',
                 apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
                 generationConfig: {

@@ -21,6 +21,14 @@
             delay: 1000, // Wait 1 second after tab creation before sorting
         },
         
+        // Auto-sort when selected tab URL changes
+        // This feature monitors the selected tab and triggers auto-sort when its URL changes
+        autoSortOnURLChange: {
+            enabled: true, // << --- Set to false to disable URL change auto-sorting
+            delay: 2000, // Wait 2 seconds after URL change before sorting
+            debounceTime: 500, // Minimum time between auto-sorts for the same tab
+        },
+        
         // Button visibility settings
         buttons: {
             autoHide: true // << --- Set to false to make buttons always visible
@@ -408,14 +416,21 @@
     let commandListenerAdded = false;
     let tabDataCache = new Map();
     
-        // --- Tab Creation Tracking ---
+        // --- Tab Creation & URL Change Tracking ---
     const TabCreationTracker = {
         tabCreationTimes: new Map(),
         openerRelationships: new Map(), // tabId -> { openerId, creationTime }
         pendingAutoSorts: new Map(), // tabId -> timeoutId
         
+        // URL change tracking
+        currentSelectedTab: null,
+        currentSelectedTabURL: null,
+        lastAutoSortTime: new Map(), // tabId -> timestamp
+        pendingURLChangeSorts: new Map(), // tabId -> timeoutId
+        
         init() {
             this.setupTabListeners();
+            this.setupURLChangeListeners();
             
             // Also try alternative event listener approach
             this.setupAlternativeListeners();
@@ -463,12 +478,26 @@
                 const tab = event.target;
                 this.tabCreationTimes.delete(tab.id);
                 this.openerRelationships.delete(tab.id);
+                this.lastAutoSortTime.delete(tab.id);
                 
                 // Cancel pending auto-sort
                 const timeoutId = this.pendingAutoSorts.get(tab.id);
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                     this.pendingAutoSorts.delete(tab.id);
+                }
+                
+                // Cancel pending URL change auto-sort
+                const urlChangeTimeoutId = this.pendingURLChangeSorts.get(tab.id);
+                if (urlChangeTimeoutId) {
+                    clearTimeout(urlChangeTimeoutId);
+                    this.pendingURLChangeSorts.delete(tab.id);
+                }
+                
+                // Clean up URL change listener if this was the selected tab
+                if (tab === this.currentSelectedTab) {
+                    this.currentSelectedTab = null;
+                    this.currentSelectedTabURL = null;
                 }
             });
             
@@ -515,6 +544,328 @@
             };
             
             setupAltListeners();
+        },
+        
+        setupURLChangeListeners() {
+            // Ensure gBrowser is available
+            if (!gBrowser) {
+                Logger.warn('gBrowser not available for URL change listeners, retrying in 1 second...');
+                setTimeout(() => this.setupURLChangeListeners(), 1000);
+                return;
+            }
+            
+            Logger.info('Setting up URL change listeners...');
+            
+            // Listen for tab selection changes via tabContainer (this one works)
+            if (gBrowser.tabContainer) {
+                gBrowser.tabContainer.addEventListener('TabSelect', (event) => {
+                    const newSelectedTab = event.target;
+                    if (newSelectedTab !== this.currentSelectedTab) {
+                        Logger.info(`🌐 Tab selection changed: ${this.currentSelectedTab?.id || 'none'} → ${newSelectedTab.id}`);
+                        this.updateSelectedTab(newSelectedTab);
+                    }
+                });
+            }
+            
+            // Poll for tab selection changes as fallback
+            this.setupTabSelectionPolling();
+            
+            // Initialize with current selected tab
+            this.initializeCurrentSelectedTab();
+            
+            Logger.info('URL change listeners set up successfully');
+        },
+        
+        updateSelectedTab(newSelectedTab) {
+            Logger.info(`🌐 Updating selected tab: ${this.currentSelectedTab?.id || 'none'} → ${newSelectedTab.id}`);
+            
+            // Update current selected tab
+            this.currentSelectedTab = newSelectedTab;
+            
+            // Get initial URL (might be null if tab is still loading)
+            this.currentSelectedTabURL = this.getTabURL(newSelectedTab);
+            
+            // Setup URL change monitoring for the new selected tab
+            this.setupURLChangeMonitoring(newSelectedTab);
+            
+            Logger.info(`🌐 Selected tab updated successfully: ${newSelectedTab.id} with URL: ${this.currentSelectedTabURL || 'loading...'}`);
+        },
+        
+        // Manually update the current URL (for testing and fixing sync issues)
+        updateCurrentURL() {
+            if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
+                const newURL = this.getTabURL(this.currentSelectedTab);
+                if (newURL && newURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
+                    Logger.info(`🌐 Manual URL update: ${this.currentSelectedTabURL || 'none'} → ${newURL}`);
+                    this.currentSelectedTabURL = newURL;
+                    this.scheduleAutoSortForURLChange(this.currentSelectedTab);
+                } else if (newURL && !this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
+                    // Initial URL set
+                    Logger.info(`🌐 Initial URL set: ${newURL}`);
+                    this.currentSelectedTabURL = newURL;
+                }
+            }
+        },
+        
+        setupTabSelectionPolling() {
+            // Poll for tab selection changes as a fallback
+            let lastSelectedTabId = null;
+            let lastMonitoringCheck = 0;
+            let lastURLCheck = 0;
+            
+            const pollForTabSelection = () => {
+                if (!gBrowser || !gBrowser.selectedTab) return;
+                
+                const currentSelectedTabId = gBrowser.selectedTab.id;
+                if (currentSelectedTabId !== lastSelectedTabId) {
+                    Logger.info(`🌐 Polling detected tab selection change: ${lastSelectedTabId || 'none'} → ${currentSelectedTabId}`);
+                    this.updateSelectedTab(gBrowser.selectedTab);
+                    lastSelectedTabId = currentSelectedTabId;
+                }
+                
+                // Check URL monitoring less frequently (every 5 seconds)
+                const now = Date.now();
+                if (now - lastMonitoringCheck > 5000) {
+                    this.ensureURLMonitoringActive();
+                    lastMonitoringCheck = now;
+                }
+                
+                // Check for URL changes every 2 seconds
+                if (now - lastURLCheck > 2000) {
+                    this.checkForURLChanges();
+                    lastURLCheck = now;
+                }
+            };
+            
+            // Poll every 1 second (less frequent)
+            setInterval(pollForTabSelection, 1000);
+            Logger.info('🌐 Tab selection polling started');
+        },
+        
+        checkForURLChanges() {
+            if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
+                const currentURL = this.getTabURL(this.currentSelectedTab);
+                if (currentURL && currentURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(currentURL)) {
+                    Logger.info(`🌐 Polling detected URL change: ${this.currentSelectedTabURL || 'none'} → ${currentURL}`);
+                    this.currentSelectedTabURL = currentURL;
+                    this.scheduleAutoSortForURLChange(this.currentSelectedTab);
+                }
+            }
+        },
+        
+        initializeCurrentSelectedTab() {
+            // Try multiple ways to get the current selected tab
+            let selectedTab = null;
+            
+            // Method 1: gBrowser.selectedTab
+            if (gBrowser.selectedTab) {
+                selectedTab = gBrowser.selectedTab;
+                Logger.info(`🌐 Found selected tab via gBrowser.selectedTab: ${selectedTab.id}`);
+            }
+            // Method 2: gBrowser.selectedTabIndex
+            else if (gBrowser.selectedTabIndex !== undefined && gBrowser.tabs[gBrowser.selectedTabIndex]) {
+                selectedTab = gBrowser.tabs[gBrowser.selectedTabIndex];
+                Logger.info(`🌐 Found selected tab via gBrowser.selectedTabIndex: ${selectedTab.id}`);
+            }
+            // Method 3: Look for selected attribute
+            else {
+                const selectedTabElement = document.querySelector('tab[selected="true"]');
+                if (selectedTabElement) {
+                    selectedTab = selectedTabElement;
+                    Logger.info(`🌐 Found selected tab via selected attribute: ${selectedTab.id}`);
+                }
+            }
+            
+            if (selectedTab) {
+                this.currentSelectedTab = selectedTab;
+                this.currentSelectedTabURL = this.getTabURL(selectedTab);
+                this.setupURLChangeMonitoring(selectedTab);
+                Logger.info(`🌐 Initialized current selected tab: ${selectedTab.id} with URL: ${this.currentSelectedTabURL || 'none'}`);
+            } else {
+                Logger.warn('🌐 Could not find current selected tab during initialization');
+            }
+        },
+        
+        setupURLChangeMonitoring(tab) {
+            if (!tab || !tab.isConnected) {
+                Logger.warn(`🌐 Cannot setup URL monitoring: tab not connected or invalid`);
+                return;
+            }
+            
+            const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
+            if (!browser) {
+                Logger.warn(`🌐 Cannot setup URL monitoring: no browser for tab ${tab.id}`);
+                return;
+            }
+            
+            Logger.info(`🌐 Setting up URL change monitoring for tab ${tab.id}`);
+            
+            // Remove any existing listeners to avoid duplicates
+            if (browser._urlChangeListener) {
+                browser.removeEventListener('load', browser._urlChangeListener);
+                Logger.debug(`🌐 Removed existing URL change listener for tab ${tab.id}`);
+            }
+            
+            // Create new listener for page loads
+            const urlChangeListener = () => {
+                Logger.info(`🌐 Load event fired for tab ${tab.id}`);
+                const newURL = this.getTabURL(tab);
+                Logger.info(`🌐 New URL for tab ${tab.id}: ${newURL}`);
+                Logger.info(`🌐 Current selected tab URL: ${this.currentSelectedTabURL}`);
+                
+                if (newURL && newURL !== this.currentSelectedTabURL && this.isValidURLForAutoSort(newURL)) {
+                    Logger.info(`🌐 URL changed for selected tab ${tab.id}: ${this.currentSelectedTabURL || 'none'} → ${newURL}`);
+                    this.currentSelectedTabURL = newURL;
+                    this.scheduleAutoSortForURLChange(tab);
+                } else if (newURL && (!this.currentSelectedTabURL || this.currentSelectedTabURL === 'none') && this.isValidURLForAutoSort(newURL)) {
+                    // Initial page load with valid URL
+                    Logger.info(`🌐 Initial page load for selected tab ${tab.id}: ${newURL}`);
+                    this.currentSelectedTabURL = newURL;
+                } else {
+                    Logger.info(`🌐 URL change not significant or invalid for auto-sort`);
+                }
+            };
+            
+            // Store reference and add listener
+            browser._urlChangeListener = urlChangeListener;
+            browser.addEventListener('load', urlChangeListener);
+            
+            Logger.info(`🌐 URL change monitoring setup complete for tab ${tab.id}`);
+        },
+        
+        // Ensure URL monitoring is active on the current selected tab
+        ensureURLMonitoringActive() {
+            if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
+                const browser = this.currentSelectedTab.linkedBrowser || this.currentSelectedTab._linkedBrowser || gBrowser?.getBrowserForTab?.(this.currentSelectedTab);
+                
+                // Only setup monitoring if it's not already set up
+                if (browser && !browser._urlChangeListener) {
+                    Logger.debug(`🌐 Ensuring URL monitoring is active on current selected tab ${this.currentSelectedTab.id}`);
+                    this.setupURLChangeMonitoring(this.currentSelectedTab);
+                }
+            }
+        },
+        
+        getTabURL(tab) {
+            if (!tab || !tab.isConnected) return null;
+            
+            try {
+                const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
+                if (!browser || !browser.currentURI) {
+                    Logger.debug(`No browser or currentURI for tab ${tab.id}`);
+                    return null;
+                }
+                
+                const url = browser.currentURI.spec;
+                Logger.debug(`Got URL for tab ${tab.id}: ${url}`);
+                return url && url !== 'about:blank' ? url : null;
+            } catch (e) {
+                Logger.debug(`Error getting URL for tab ${tab.id}:`, e);
+                return null;
+            }
+        },
+        
+        isValidURLForAutoSort(url) {
+            if (!url) return false;
+            
+            // Skip internal browser pages
+            if (url.startsWith('about:') || 
+                url.startsWith('chrome://') || 
+                url.startsWith('moz-extension://') ||
+                url.startsWith('resource://') ||
+                url === 'about:blank') {
+                return false;
+            }
+            
+            // Skip data URLs
+            if (url.startsWith('data:')) return false;
+            
+            return true;
+        },
+        
+        scheduleAutoSortForURLChange(tab) {
+            if (!CONFIG.autoSortOnURLChange.enabled) {
+                Logger.debug(`🌐 URL change auto-sort disabled, skipping for tab ${tab.id}`);
+                return;
+            }
+            
+            // Check debounce time
+            const lastSortTime = this.lastAutoSortTime.get(tab.id) || 0;
+            const timeSinceLastSort = Date.now() - lastSortTime;
+            
+            if (timeSinceLastSort < CONFIG.autoSortOnURLChange.debounceTime) {
+                Logger.debug(`🌐 Debouncing URL change auto-sort for tab ${tab.id} (${timeSinceLastSort}ms < ${CONFIG.autoSortOnURLChange.debounceTime}ms)`);
+                return;
+            }
+            
+            // Cancel any pending URL change auto-sort for this tab
+            const existingTimeout = this.pendingURLChangeSorts.get(tab.id);
+            if (existingTimeout) {
+                clearTimeout(existingTimeout);
+            }
+            
+            Logger.info(`🌐 Scheduling URL change auto-sort for tab ${tab.id} in ${CONFIG.autoSortOnURLChange.delay}ms`);
+            
+            const timeoutId = setTimeout(() => {
+                Logger.info(`🌐 URL change auto-sort timeout fired for tab ${tab.id}`);
+                this.performAutoSortForURLChange(tab);
+                this.pendingURLChangeSorts.delete(tab.id);
+            }, CONFIG.autoSortOnURLChange.delay);
+            
+            this.pendingURLChangeSorts.set(tab.id, timeoutId);
+        },
+        
+        async performAutoSortForURLChange(tab) {
+            Logger.info(`🌐 URL change auto-sort: Starting auto-sort for tab ${tab.id}`);
+            
+            if (!tab.isConnected) {
+                Logger.warn(`❌ Tab ${tab.id} no longer connected, skipping URL change auto-sort`);
+                return;
+            }
+            
+            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+            Logger.info(`🌐 URL change auto-sort: Current workspace ID: ${currentWorkspaceId}`);
+            
+            if (!WorkspaceUtils.validateWorkspace(currentWorkspaceId)) {
+                Logger.warn(`❌ Invalid workspace, skipping URL change auto-sort`);
+                return;
+            }
+            
+            // Check if the tab is already in a group (for logging only)
+            const isInGroup = tab.closest('tab-group') !== null;
+            Logger.info(`🌐 URL change auto-sort: Tab ${tab.id} is ${isInGroup ? 'already grouped' : 'ungrouped'}`);
+            
+            // Always perform auto-sort for URL changes, regardless of grouping status
+            // This allows tabs to be re-sorted when their content changes
+            try {
+                // Add visual indicator for auto-sorting
+                if (tab.isConnected) {
+                    tab.classList.add('tab-auto-sorting');
+                }
+                
+                // Update last auto-sort time
+                this.lastAutoSortTime.set(tab.id, Date.now());
+                
+                Logger.info(`🌐 URL change auto-sort: Starting sorting process for URL-changed tab...`);
+                // Use the existing sorting logic with auto-sort flag
+                await sortTabsByTopic(true, tab);
+                Logger.info(`🌐 URL change auto-sort: Sorting process completed`);
+                
+                // Remove visual indicator
+                setTimeout(() => {
+                    if (tab.isConnected) {
+                        tab.classList.remove('tab-auto-sorting');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                Logger.error("URL change auto-sort failed:", error);
+                
+                // Remove visual indicator on error
+                if (tab.isConnected) {
+                    tab.classList.remove('tab-auto-sorting');
+                }
+            }
         },
         
         scheduleAutoSort(tab) {
@@ -588,11 +939,6 @@
                              !browser.currentURI.spec.startsWith('about:') &&
                              browser.currentURI.spec !== 'about:blank';
             
-            // Check if user has interacted with the tab
-            const hasUserActivity = tab.hasAttribute('data-user-activity') || 
-                                   tab.hasAttribute('data-loaded') ||
-                                   tab.getAttribute('label') !== 'Loading...';
-            
             // For auto-sort, we're more lenient - just need the page to be loaded
             return hasLoaded;
         },
@@ -655,6 +1001,64 @@
                 window.dispatchEvent(event);
                 
                 Logger.info(`🧪 Synthetic events dispatched`);
+            }
+        },
+        
+        // Test function to check URL change tracking
+        testURLChangeTracking() {
+            Logger.info(`🧪 Testing URL change tracking...`);
+            Logger.info(`🧪 Current selected tab: ${this.currentSelectedTab ? `ID: ${this.currentSelectedTab.id || 'unknown'}` : 'none'}`);
+            Logger.info(`🧪 Current selected tab URL: ${this.currentSelectedTabURL || 'none'}`);
+            Logger.info(`🧪 URL change auto-sort enabled: ${CONFIG.autoSortOnURLChange.enabled}`);
+            Logger.info(`🧪 Pending URL change sorts: ${this.pendingURLChangeSorts.size}`);
+            Logger.info(`🧪 Last auto-sort times tracked: ${this.lastAutoSortTime.size}`);
+            
+            // Try to re-initialize if no current selected tab
+            if (!this.currentSelectedTab) {
+                Logger.info(`🧪 No current selected tab found, attempting to re-initialize...`);
+                this.initializeCurrentSelectedTab();
+            }
+            
+            if (this.currentSelectedTab) {
+                const currentURL = this.getTabURL(this.currentSelectedTab);
+                Logger.info(`🧪 Current tab URL: ${currentURL || 'none'}`);
+                Logger.info(`🧪 Is valid URL for auto-sort: ${this.isValidURLForAutoSort(currentURL)}`);
+                
+                // Additional debugging info
+                const browser = this.currentSelectedTab.linkedBrowser || this.currentSelectedTab._linkedBrowser || gBrowser?.getBrowserForTab?.(this.currentSelectedTab);
+                Logger.info(`🧪 Tab browser available: ${!!browser}`);
+                Logger.info(`🧪 Tab browser currentURI: ${browser?.currentURI?.spec || 'none'}`);
+                Logger.info(`🧪 Tab is connected: ${this.currentSelectedTab.isConnected}`);
+                Logger.info(`🧪 Tab has URL change listener: ${!!browser?._urlChangeListener}`);
+                Logger.info(`🧪 Tab has location change listener: ${!!browser?._locationChangeListener}`);
+                
+                // Check if tab is grouped
+                const isInGroup = this.currentSelectedTab.closest('tab-group') !== null;
+                Logger.info(`🧪 Tab is in group: ${isInGroup}`);
+                
+                // Test manual URL change detection
+                Logger.info(`🧪 Testing manual URL change detection...`);
+                const testURL = this.getTabURL(this.currentSelectedTab);
+                Logger.info(`🧪 Manual URL check: ${testURL}`);
+                if (testURL && testURL !== this.currentSelectedTabURL) {
+                    Logger.info(`🧪 URL difference detected! Current: ${this.currentSelectedTabURL}, Manual: ${testURL}`);
+                }
+            } else {
+                Logger.warn(`🧪 Still no current selected tab found after re-initialization`);
+            }
+        },
+        
+        // Test function to manually trigger URL change auto-sort
+        testURLChangeAutoSort() {
+            Logger.info(`🧪 Testing URL change auto-sort...`);
+            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+            Logger.info(`🧪 Current workspace: ${currentWorkspaceId}`);
+            
+            if (this.currentSelectedTab && this.currentSelectedTab.isConnected) {
+                Logger.info(`🧪 Triggering manual URL change auto-sort for selected tab ${this.currentSelectedTab.id}`);
+                this.performAutoSortForURLChange(this.currentSelectedTab);
+            } else {
+                Logger.info(`🧪 No selected tab available for URL change auto-sort`);
             }
         }
     };
@@ -2080,6 +2484,125 @@
         }
     };
     
+    window.testURLChangeTracking = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            TabCreationTracker.testURLChangeTracking();
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.testURLChangeAutoSort = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            TabCreationTracker.testURLChangeAutoSort();
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.reinitializeURLTracking = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            console.log('🔄 Re-initializing URL change tracking...');
+            TabCreationTracker.initializeCurrentSelectedTab();
+            TabCreationTracker.testURLChangeTracking();
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.testURLChangeDetection = () => {
+        if (typeof TabCreationTracker !== 'undefined' && TabCreationTracker.currentSelectedTab) {
+            console.log('🧪 Testing URL change detection manually...');
+            const tab = TabCreationTracker.currentSelectedTab;
+            const currentURL = TabCreationTracker.getTabURL(tab);
+            console.log(`Current URL: ${currentURL}`);
+            console.log(`Stored URL: ${TabCreationTracker.currentSelectedTabURL}`);
+            
+            if (currentURL && currentURL !== TabCreationTracker.currentSelectedTabURL) {
+                console.log('🌐 URL change detected! Triggering auto-sort...');
+                TabCreationTracker.currentSelectedTabURL = currentURL;
+                TabCreationTracker.scheduleAutoSortForURLChange(tab);
+            } else {
+                console.log('No URL change detected');
+            }
+        } else {
+            console.log('No current selected tab available');
+        }
+    };
+    
+    window.testURLChangeWithUngroupedTab = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            console.log('🧪 Testing URL change auto-sort with ungrouped tab...');
+            
+            // Find an ungrouped tab
+            const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
+            const ungroupedTabs = TabFilters.getUngroupedTabs(currentWorkspaceId);
+            
+            if (ungroupedTabs.length > 0) {
+                const testTab = ungroupedTabs[0];
+                console.log(`Found ungrouped tab: ${testTab.id} - "${testTab.getAttribute('label') || 'Unknown'}"`);
+                
+                // Switch to this tab and test URL change
+                if (gBrowser && gBrowser.selectedTab !== testTab) {
+                    console.log('Switching to ungrouped tab for testing...');
+                    gBrowser.selectedTab = testTab;
+                    
+                    // Wait a moment then test URL change detection
+                    setTimeout(() => {
+                        console.log('Testing URL change detection on ungrouped tab...');
+                        TabCreationTracker.testURLChangeTracking();
+                    }, 500);
+                } else {
+                    console.log('Tab is already selected or no gBrowser available');
+                }
+            } else {
+                console.log('No ungrouped tabs found. Create a new tab to test URL change auto-sort.');
+            }
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.testTabSelectionDetection = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            console.log('🧪 Testing tab selection detection...');
+            console.log(`Current selected tab: ${TabCreationTracker.currentSelectedTab?.id || 'none'}`);
+            console.log(`gBrowser.selectedTab: ${gBrowser?.selectedTab?.id || 'none'}`);
+            console.log(`gBrowser.selectedTabIndex: ${gBrowser?.selectedTabIndex || 'none'}`);
+            
+            // Try to manually trigger tab selection update
+            if (gBrowser && gBrowser.selectedTab) {
+                console.log('🔄 Manually updating selected tab...');
+                TabCreationTracker.updateSelectedTab(gBrowser.selectedTab);
+                console.log('✅ Selected tab updated manually');
+            } else {
+                console.log('❌ No gBrowser or selected tab available');
+            }
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.ensureURLMonitoring = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            console.log('🔄 Ensuring URL monitoring is active on current selected tab...');
+            TabCreationTracker.ensureURLMonitoringActive();
+            console.log('✅ URL monitoring ensured');
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
+    window.triggerURLUpdate = () => {
+        if (typeof TabCreationTracker !== 'undefined') {
+            console.log('🔄 Manually triggering URL update and auto-sort...');
+            TabCreationTracker.updateCurrentURL();
+            console.log('✅ URL update triggered');
+        } else {
+            console.log('TabCreationTracker not initialized yet');
+        }
+    };
+    
     // Debug function to check current auto-sort state
     window.debugAutoSort = () => {
         const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
@@ -2091,7 +2614,9 @@
         console.log(`  Ungrouped Tabs: ${ungroupedTabs.length}`);
         console.log(`  Existing Groups: ${existingGroups.size}`);
         console.log(`  Auto-sort enabled: ${CONFIG.autoSortNewTabs.enabled}`);
-        console.log(`  Max tabs to sort: ${CONFIG.autoSortNewTabs.maxTabsToSort}`);
+        console.log(`  URL change auto-sort enabled: ${CONFIG.autoSortOnURLChange.enabled}`);
+        console.log(`  URL change delay: ${CONFIG.autoSortOnURLChange.delay}ms`);
+        console.log(`  URL change debounce: ${CONFIG.autoSortOnURLChange.debounceTime}ms`);
         console.log(`  Min tabs for new group: ${CONFIG.thresholds.minTabsForNewGroup}`);
         
         if (ungroupedTabs.length > 0) {
@@ -2108,6 +2633,15 @@
             existingGroups.forEach((groupData, groupName) => {
                 console.log(`    "${groupName}": ${groupData.tabs.length} tabs`);
             });
+        }
+        
+        // Add URL change tracking info
+        if (TabCreationTracker) {
+            console.log('  URL Change Tracking:');
+            console.log(`    Current selected tab: ${TabCreationTracker.currentSelectedTab?.id || 'none'}`);
+            console.log(`    Current selected tab URL: ${TabCreationTracker.currentSelectedTabURL || 'none'}`);
+            console.log(`    Pending URL change sorts: ${TabCreationTracker.pendingURLChangeSorts.size}`);
+            console.log(`    Last auto-sort times tracked: ${TabCreationTracker.lastAutoSortTime.size}`);
         }
     };
   

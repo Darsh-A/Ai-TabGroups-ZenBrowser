@@ -39,10 +39,10 @@
         scoringWeights: {
             existingGroup: 0.90,
             opener: 0.85,
-            keyword: 0.85,  // High priority - titles have more context
             contentType: 0.80,
-            hostname: 0.70, // Reduced from 0.75 - URLs less important than titles
-            aiSuggestion: 0.70
+            hostname: 0.75,
+            aiSuggestion: 0.70,
+            keyword: 0.60
         },
 
         // --- Dynamic Weight Adaptation ---
@@ -52,28 +52,28 @@
             // Size-based weight profiles
             sizeProfiles: {
                 small: { // 1-5 tabs
-                    keyword: 0.90,  // Highest priority - titles have most context
-                    hostname: 0.80, // Reduced priority
+                    hostname: 0.90,
                     contentType: 0.85,
                     aiSuggestion: 0.80,
                     opener: 0.75,
-                    existingGroup: 0.70
+                    existingGroup: 0.70,
+                    keyword: 0.60
                 },
                 medium: { // 6-15 tabs
                     existingGroup: 0.90,
-                    keyword: 0.85,  // High priority for title-based grouping
                     opener: 0.85,
-                    hostname: 0.75, // Reduced priority
+                    hostname: 0.80,
                     contentType: 0.75,
-                    aiSuggestion: 0.70
+                    aiSuggestion: 0.70,
+                    keyword: 0.60
                 },
                 large: { // 16+ tabs
                     existingGroup: 0.90,
-                    keyword: 0.85,  // High priority for title-based grouping
-                    hostname: 0.80, // Reduced priority
                     aiSuggestion: 0.75,
+                    hostname: 0.85,
                     contentType: 0.75,
-                    opener: 0.70
+                    opener: 0.70,
+                    keyword: 0.60
                 }
             },
             

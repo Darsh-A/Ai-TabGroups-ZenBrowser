@@ -1,14 +1,14 @@
-// VERSION 6.2.0 - Added random group color starting point feature
+// VERSION 6.3.0 - Better Autosort logic and changes
 (() => {
     // --- Configuration ---
     const CONFIG = {
         // --- Logging Control ---
         logging: {
             enabled: true,
-            level: 'warn', // 'debug', 'info', 'warn', 'error', 'none'
-            showDetailedScoring: false, // Show individual scorer details
-            showWeightChanges: false, // Show dynamic weight adjustments
-            showGroupingResults: false // Show final grouping results
+            level: 'info', // 'debug', 'info', 'warn', 'error', 'none'
+            showDetailedScoring: true, // Show individual scorer details
+            showWeightChanges: true, // Show dynamic weight adjustments
+            showGroupingResults: true // Show final grouping results
         },
 
         aiOnlyGrouping: false, // << --- Set to true to let AI handle all grouping logic
@@ -55,29 +55,30 @@
             enabled: true,
 
             // Size-based weight profiles
+            // Replace the entire 'sizeProfiles' object with this new one.
             sizeProfiles: {
                 small: { // 1-5 tabs
-                    hostname: 0.90,
-                    contentType: 0.85,
-                    aiSuggestion: 0.80,
-                    opener: 0.75,
-                    existingGroup: 0.70,
-                    keyword: 0.60
-                },
-                medium: { // 6-15 tabs
-                    existingGroup: 0.90,
-                    opener: 0.85,
-                    hostname: 0.80,
+                    existingGroup: 0.95, // HIGHEST PRIORITY: Joining a group is most important.
+                    hostname: 0.85,
+                    opener: 0.80,
                     contentType: 0.75,
                     aiSuggestion: 0.70,
                     keyword: 0.60
                 },
-                large: { // 16+ tabs
-                    existingGroup: 0.90,
+                medium: { // 6-15 tabs
+                    existingGroup: 0.95, // STILL HIGHEST PRIORITY.
+                    opener: 0.85,
+                    hostname: 0.80,
                     aiSuggestion: 0.75,
+                    contentType: 0.70,
+                    keyword: 0.60
+                },
+                large: { // 16+ tabs
+                    existingGroup: 0.95, // ALWAYS THE HIGHEST PRIORITY.
+                    aiSuggestion: 0.90, // AI is more valuable with lots of tabs for context.
                     hostname: 0.85,
-                    contentType: 0.75,
-                    opener: 0.70,
+                    opener: 0.75,
+                    contentType: 0.70,
                     keyword: 0.60
                 }
             },
@@ -1108,6 +1109,11 @@
         }
 
         generateProposals(context) {
+            if (CONFIG.logging.showDetailedScoring) {
+                Logger.info('🔍 === DETAILED SCORING START ===');
+                Logger.info(`📊 Processing ${this.enrichedTabs.length} tabs with dynamic weights:`, this.dynamicWeights);
+            }
+
             this.enrichedTabs.forEach(et => {
                 const proposals = [];
 
@@ -1133,28 +1139,46 @@
                 }
 
                 this.tabProposals.set(et.tab, proposals);
+
+                // Log detailed scoring for this tab
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.info(`📋 Tab: "${et.data.title}" (${et.data.hostname})`);
+                    if (proposals.length > 0) {
+                        proposals.forEach((proposal, index) => {
+                            Logger.info(`   ${index + 1}. ${proposal.groupName} (${proposal.source}) - Score: ${proposal.score.toFixed(3)}`);
+                        });
+                    } else {
+                        Logger.info(`   ❌ No proposals generated`);
+                    }
+                }
             });
+
+            if (CONFIG.logging.showDetailedScoring) {
+                Logger.info('🔍 === DETAILED SCORING END ===');
+            }
         }
 
         resolveGroupAssignments() {
+            if (CONFIG.logging.showGroupingResults) {
+                Logger.info('🎯 === GROUPING RESULTS START ===');
+            }
+
             const groupCandidates = new Map();
 
-            // --- Step 1: Build Candidate Groups from all proposals ---
-            // Instead of picking the best proposal per tab, we aggregate all proposals by their group name.
+            // Step 1: Build Candidate Groups from all proposals (Unchanged)
             this.enrichedTabs.forEach(et => {
                 const proposals = this.tabProposals.get(et.tab);
                 if (!proposals || proposals.length === 0) return;
-
                 proposals.forEach(proposal => {
-                    // Ignore low-confidence proposals from the start
                     if (proposal.score < CONFIG.thresholds.minGroupingScore) return;
-
                     const groupName = proposal.groupName;
                     if (!groupCandidates.has(groupName)) {
                         groupCandidates.set(groupName, {
                             tabs: [],
                             totalScore: 0,
-                            sources: new Set()
+                            sources: new Set(),
+                            // NEW: Track if this candidate corresponds to an existing group
+                            isExisting: this.existingGroups.has(groupName)
                         });
                     }
                     const candidate = groupCandidates.get(groupName);
@@ -1164,65 +1188,89 @@
                 });
             });
 
-            // --- Step 2: Score the strength of each Candidate Group ---
-            // A group is stronger if it has more tabs and diverse sources.
-            const scoredCandidates = [];
-            for (const [name, candidate] of groupCandidates.entries()) {
-                const numTabs = candidate.tabs.length;
-                const numSources = candidate.sources.size;
+            // Step 2: Consolidate Similar Candidate Names BEFORE Scoring
+            const originalKeys = Array.from(groupCandidates.keys());
+            const mergedKeys = new Set();
+            for (let i = 0; i < originalKeys.length; i++) {
+                const keyA = originalKeys[i];
+                if (mergedKeys.has(keyA)) continue;
 
-                // Don't even consider single-tab groups unless they match an existing group
-                // or are being added via auto-sort.
-                const isExisting = this.existingGroups.has(name);
-                const isAutoSortMode = this.enrichedTabs.length <= CONFIG.autoSortNewTabs.maxTabsToSort;
-                if (numTabs < CONFIG.thresholds.minTabsForNewGroup && !isExisting && !isAutoSortMode) {
-                    continue;
+                for (let j = i + 1; j < originalKeys.length; j++) {
+                    const keyB = originalKeys[j];
+                    if (mergedKeys.has(keyB)) continue;
+
+                    if (levenshteinDistance(keyA, keyB) <= CONFIG.consolidationDistanceThreshold) {
+                        const canonicalKey = keyA.length <= keyB.length ? keyA : keyB;
+                        const mergedKey = canonicalKey === keyA ? keyB : keyA;
+                        
+                        const mergedData = groupCandidates.get(mergedKey);
+                        const canonicalData = groupCandidates.get(canonicalKey);
+
+                        // Merge the data from B into A
+                        canonicalData.tabs.push(...mergedData.tabs);
+                        canonicalData.totalScore += mergedData.totalScore;
+                        mergedData.sources.forEach(source => canonicalData.sources.add(source));
+                        // NEW: The merged group is "existing" if EITHER parent was.
+                        canonicalData.isExisting = canonicalData.isExisting || mergedData.isExisting;
+
+                        mergedKeys.add(mergedKey);
+                    }
                 }
+            }
+            mergedKeys.forEach(key => groupCandidates.delete(key));
 
-                // Scoring Formula: Base score is the sum of tab scores.
-                // Add a significant bonus for each additional tab.
-                // Add a smaller bonus for each unique source (AI, Keyword, etc.)
-                const tabBonus = 1 + ((numTabs - 1) * 0.5); // 50% bonus per extra tab
-                const sourceBonus = 1 + ((numSources - 1) * 0.15); // 15% bonus per extra source
-
-                const finalScore = candidate.totalScore * tabBonus * sourceBonus;
-
-                scoredCandidates.push({
-                    name,
-                    finalScore,
-                    tabs: candidate.tabs.map(t => t.tab) // Just need the tab objects now
-                });
+            if (CONFIG.logging.showGroupingResults) {
+                Logger.info(`📊 Built ${groupCandidates.size} consolidated candidate groups from proposals`);
             }
 
-            // --- Step 3: Resolve conflicts by picking the strongest groups first ---
-            scoredCandidates.sort((a, b) => b.finalScore - a.finalScore);
+            // Step 3: Score the strength of each CONSOLIDATED Candidate Group
+            const scoredCandidates = [];
+            for (const [name, candidate] of groupCandidates.entries()) {
+                const numTabs = new Set(candidate.tabs.map(t => t.tab)).size;
+                const numSources = candidate.sources.size;
+                
+                // Use the status we preserved through the merge
+                if (numTabs < CONFIG.thresholds.minTabsForNewGroup && !candidate.isExisting) {
+                     continue;
+                }
 
+                const tabBonus = 1 + ((numTabs - 1) * 0.5);
+                const sourceBonus = 1 + ((numSources - 1) * 0.15);
+                let finalScore = candidate.totalScore * tabBonus * sourceBonus;
+
+                if (CONFIG.logging.showGroupingResults) {
+                    Logger.info(`📈 Group "${name}" [Existing: ${candidate.isExisting}]: ${numTabs} tabs, ${numSources} sources, finalScore: ${finalScore.toFixed(3)}`);
+                }
+
+                scoredCandidates.push({ name, finalScore, tabs: candidate.tabs.map(t => t.tab), isExisting: candidate.isExisting });
+            }
+
+            // Step 4: Resolve conflicts with the principled tie-breaker
+            scoredCandidates.sort((a, b) => {
+                const scoreDifference = b.finalScore - a.finalScore;
+                if (scoreDifference !== 0) return scoreDifference;
+                // Use the status we preserved through the merge
+                if (b.isExisting && !a.isExisting) return 1;
+                if (a.isExisting && !b.isExisting) return -1;
+                return 0;
+            });
+            
+            // Step 5: Assign tabs to final groups
             const finalGroups = {};
             const assignedTabs = new Set();
-            const leftoverTabs = [];
-
             for (const candidate of scoredCandidates) {
-                // Get tabs for this group that haven't already been assigned to a stronger group
-                const tabsForThisGroup = candidate.tabs.filter(tab => !assignedTabs.has(tab));
-
+                const tabsForThisGroup = [...new Set(candidate.tabs)].filter(tab => !assignedTabs.has(tab));
                 if (tabsForThisGroup.length > 0) {
-                    // Check min size again after filtering out assigned tabs
-                    const isExisting = this.existingGroups.has(candidate.name);
-                    if (tabsForThisGroup.length >= CONFIG.thresholds.minTabsForNewGroup || isExisting) {
+                    // Use the status we preserved through the merge
+                    if (tabsForThisGroup.length >= CONFIG.thresholds.minTabsForNewGroup || candidate.isExisting) {
                         finalGroups[candidate.name] = tabsForThisGroup;
                         tabsForThisGroup.forEach(tab => assignedTabs.add(tab));
                     }
                 }
             }
-
-            // Any tab not in a final group is a leftover
-            this.enrichedTabs.forEach(et => {
-                if (!assignedTabs.has(et.tab)) {
-                    leftoverTabs.push(et);
-                }
-            });
-
-            return { finalGroups, leftoverTabs };
+            
+            const leftoverTabs = this.enrichedTabs.filter(et => !assignedTabs.has(et.tab));
+            return { finalGroups, leftoverTabs: leftoverTabs.map(et => et.tab) };
         }
     }
 
@@ -1377,12 +1425,11 @@
                 factors++;
             }
 
-            // Check keyword similarity
-            if (tab.keywords && groupData.commonKeywords) {
+            if (tab.keywords && groupData.commonKeywords && groupData.commonKeywords.length > 0) {
                 const overlap = [...tab.keywords].filter(kw => groupData.commonKeywords.includes(kw));
                 if (overlap.length > 0) {
-                    const keywordScore = overlap.length / tab.keywords.size;
-                    totalScore += keywordScore;
+                    const keywordScore = overlap.length / groupData.commonKeywords.length;
+                    totalScore += Math.min(keywordScore, 1.0);
                     factors++;
                 }
             }
@@ -1400,8 +1447,19 @@
             return CONFIG.scoringWeights;
         }
 
+        if (CONFIG.logging.showWeightChanges) {
+            Logger.info('⚖️ === DYNAMIC WEIGHT CALCULATION START ===');
+            Logger.info(`📊 Base weights:`, CONFIG.scoringWeights);
+        }
+
         // Apply size-based adjustments
         let finalWeights = getSizeBasedWeights(enrichedTabs.length);
+        const sizeProfile = getSizeProfileName(enrichedTabs.length);
+
+        if (CONFIG.logging.showWeightChanges) {
+            Logger.info(`📏 Size profile (${enrichedTabs.length} tabs): ${sizeProfile}`);
+            Logger.info(`📏 Size-based weights:`, finalWeights);
+        }
 
         // Apply user behavior adjustments
         const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
@@ -1412,9 +1470,17 @@
                 finalWeights.contentType *= 1.15; // Content type matters more for work
                 finalWeights.hostname *= 1.10;    // Domain matters more for work
                 finalWeights.aiSuggestion *= 0.95; // AI less needed for work patterns
+
+                if (CONFIG.logging.showWeightChanges) {
+                    Logger.info(`💼 Work pattern detected - adjusted weights for work context`);
+                }
             } else {
                 finalWeights.aiSuggestion *= 1.15; // AI better at leisure categorization
                 finalWeights.keyword *= 1.10;      // Keywords matter more for leisure
+
+                if (CONFIG.logging.showWeightChanges) {
+                    Logger.info(`🎮 Leisure pattern detected - adjusted weights for leisure context`);
+                }
             }
         }
 
@@ -1436,6 +1502,19 @@
         Object.keys(finalWeights).forEach(key => {
             finalWeights[key] *= avgAdjustment[key];
         });
+
+        // const MAX_WEIGHT = 0.95;
+        // for (const key in finalWeights) {
+        //     if (finalWeights[key] > MAX_WEIGHT) {
+        //         finalWeights[key] = MAX_WEIGHT;
+        //     }
+        // }
+
+        if (CONFIG.logging.showWeightChanges) {
+            Logger.info(`🧠 Content complexity adjustments:`, avgAdjustment);
+            Logger.info(`⚖️ Final dynamic weights:`, finalWeights);
+            Logger.info('⚖️ === DYNAMIC WEIGHT CALCULATION END ===');
+        }
 
         return finalWeights;
     };
@@ -1616,7 +1695,7 @@
         mergedKeywords.forEach(k => {
             mergedCounts.set(k, (mergedCounts.get(k) || 0) + 1);
         });
-        const threshold = Math.max(1, Math.floor(titles.length * 0.4));
+        const threshold = Math.max(1, Math.ceil(titles.length * 0.51));
         return Array.from(mergedCounts.entries())
             .filter(([_, count]) => count >= threshold)
             .sort((a, b) => b[1] - a[1])
@@ -1634,7 +1713,12 @@
     // *** FIXED: Now creates "pretty names" ***
     const processTopic = (text) => {
         if (!text) return "Uncategorized";
-        let processedText = text.trim().toLowerCase();
+        let processedText = text.trim();
+
+        // Use the same intelligent cleaning as the keyword extractor
+        processedText = processedText
+            .replace(/([a-z])([A-Z])/g, '$1 $2') // Split camelCase words like "ClinicalTrials" into "Clinical Trials"
+            .toLowerCase();
 
         if (CONFIG.normalizationMap[processedText]) {
             return CONFIG.normalizationMap[processedText];
@@ -1643,22 +1727,27 @@
         processedText = processedText.replace(/^(Category is|The category is|Topic:|Category:|Group:|Name:)\s*"?/i, '');
         processedText = processedText.replace(/^\s*[\d.\-*]+\s*/, '');
 
-        // Prettify by removing TLDs and replacing separators with spaces
         processedText = processedText.replace(/\.(com|de|org|io|net|md|gov|edu)/g, ' ');
         processedText = processedText.replace(/[.\-_]/g, ' ');
-
-        // Remove remaining unwanted characters
         processedText = processedText.replace(/["*();:,]/g, '');
 
         let words = processedText.trim().split(/\s+/);
-
         let category = toTitleCase(words.slice(0, 3).join(' '));
         return category.substring(0, 50) || "Uncategorized";
     };
 
     const extractTitleKeywords = (title) => {
         if (!title || typeof title !== 'string') return new Set();
-        const cleanedTitle = title.toLowerCase().replace(/[-_]/g, ' ').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+
+        let cleanedTitle = title
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .toLowerCase()
+            .replace(/\.(com|de|org|io|net|md|gov|edu)/g, ' ')
+            .replace(/[.\-_]/g, ' ')
+            .replace(/[^\w\s]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
         const words = cleanedTitle.split(' ');
         const keywords = new Set();
         for (const word of words) {
@@ -1961,9 +2050,16 @@
 
             const currentWorkspaceId = WorkspaceUtils.getCurrentWorkspaceId();
             if (!WorkspaceUtils.validateWorkspace(currentWorkspaceId)) { isSorting = false; return; }
+
+            Logger.info('🚀 === TAB SORTING START ===');
+            Logger.info(`📋 Mode: ${isAutoSortForNewTab ? 'Auto-sort for new tab' : isSortingSelectedTabs ? 'Multi-select sort' : 'Sort all ungrouped'}`);
+            Logger.info(`🏢 Workspace: ${currentWorkspaceId}`);
+            Logger.info(`🔧 AI-only grouping: ${CONFIG.aiOnlyGrouping}`);
+            Logger.info(`📊 Detailed scoring: ${CONFIG.logging.showDetailedScoring}`);
+            Logger.info(`⚖️ Weight changes: ${CONFIG.logging.showWeightChanges}`);
+            Logger.info(`🎯 Grouping results: ${CONFIG.logging.showGroupingResults}`);
+
             // --- Step 1: Analyze Environment & Determine Tabs to Consider ---
-
-
             const existingGroups = analyzeExistingGroups(currentWorkspaceId);
             let rawTabsToConsider;
 
@@ -2147,6 +2243,8 @@
                     }
                 }
             }
+
+            Logger.info('✅ === TAB SORTING COMPLETED ===');
 
         } catch (error) {
             Logger.error("Error during overall sorting process:", error);

@@ -50,6 +50,18 @@
             keyword: 0.60
         },
 
+        // --- Scorer Enable/Disable Settings ---
+        scorers: {
+            enabled: {
+                existingGroup: true,  // << --- Set to false to disable existing group scoring
+                opener: true,         // << --- Set to false to disable opener relationship scoring
+                contentType: true,    // << --- Set to false to disable content type scoring
+                hostname: true,       // << --- Set to false to disable hostname scoring
+                aiSuggestion: true,   // << --- Set to false to disable AI suggestion scoring
+                keyword: true         // << --- Set to false to disable keyword scoring
+            }
+        },
+
         // --- Dynamic Weight Adaptation ---
         dynamicWeights: {
             enabled: true,
@@ -359,6 +371,39 @@
         .separator-is-sorting {
             animation: pulse-separator-bg 1.5s ease-in-out infinite;
             will-change: background-color;
+        }
+        
+        /* Auto-sort dot indicator */
+        @keyframes auto-sort-dot-pulse {
+            0%, 100% { 
+                opacity: 0.6; 
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 1; 
+                transform: scale(1.2);
+            }
+        }
+        
+        .separator-auto-sorting {
+            width: 100% !important;
+            margin-right: auto !important;
+            position: relative;
+            background: linear-gradient(to right, transparent 0 20px, var(--lwt-toolbarbutton-border-color, rgba(200,200,200,0.1)) 20px 100%);
+        }
+        
+        .separator-auto-sorting::before {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: -4px;
+            width: 8px;
+            height: 8px;
+            background-color:rgba(128, 128, 128, 0.54);
+            border-radius: 50%;
+            animation: auto-sort-dot-pulse 1.5s ease-in-out infinite;
+            will-change: opacity, transform;
+            z-index: 1;
         }
         .tab-closing {
             animation: fadeUp 0.5s forwards;
@@ -802,26 +847,37 @@
                     tab.classList.add('tab-auto-sorting');
                 }
 
+                // Add auto-sort indicator to separator
+                const separators = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
+                separators.forEach(sep => sep.classList.add('separator-auto-sorting'));
+
                 // Update last auto-sort time
                 this.lastAutoSortTime.set(tab.id, Date.now());
 
                 // Use the existing sorting logic with auto-sort flag
                 await sortTabsByTopic(true, tab);
 
-                // Remove visual indicator
+                // Remove visual indicators
                 setTimeout(() => {
                     if (tab.isConnected) {
                         tab.classList.remove('tab-auto-sorting');
                     }
+                    separators.forEach(sep => {
+                        if (sep?.isConnected) sep.classList.remove('separator-auto-sorting');
+                    });
                 }, 1000);
 
             } catch (error) {
                 Logger.error("URL change auto-sort failed:", error);
 
-                // Remove visual indicator on error
+                // Remove visual indicators on error
                 if (tab.isConnected) {
                     tab.classList.remove('tab-auto-sorting');
                 }
+                const separators = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
+                separators.forEach(sep => {
+                    if (sep?.isConnected) sep.classList.remove('separator-auto-sorting');
+                });
             }
         },
 
@@ -872,25 +928,36 @@
                     newTab.classList.add('tab-auto-sorting');
                 }
 
+                // Add auto-sort indicator to separator
+                const separators = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
+                separators.forEach(sep => sep.classList.add('separator-auto-sorting'));
+
                 Logger.info(`🤖 Auto-sort: Starting sorting process for NEW TAB ONLY...`);
                 // Use the existing sorting logic with auto-sort flag and pass the new tab
                 await sortTabsByTopic(true, newTab);
                 Logger.info(`🤖 Auto-sort: Sorting process completed`);
 
-                // Remove visual indicator
+                // Remove visual indicators
                 setTimeout(() => {
                     if (newTab.isConnected) {
                         newTab.classList.remove('tab-auto-sorting');
                     }
+                    separators.forEach(sep => {
+                        if (sep?.isConnected) sep.classList.remove('separator-auto-sorting');
+                    });
                 }, 1000);
 
             } catch (error) {
                 Logger.error("Auto-sort failed:", error);
 
-                // Remove visual indicator on error
+                // Remove visual indicators on error
                 if (newTab.isConnected) {
                     newTab.classList.remove('tab-auto-sorting');
                 }
+                const separators = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
+                separators.forEach(sep => {
+                    if (sep?.isConnected) sep.classList.remove('separator-auto-sorting');
+                });
             }
         },
 
@@ -1098,13 +1165,25 @@
             this.enrichedTabs = enrichedTabs;
             this.existingGroups = existingGroups;
             this.dynamicWeights = getDynamicWeights(enrichedTabs, existingGroups);
-            this.scorers = [
-                new OpenerScorer(this.dynamicWeights),
-                new ContentTypeScorer(this.dynamicWeights),
-                new HostnameScorer(this.dynamicWeights),
-                new KeywordScorer(this.dynamicWeights),
-                new ExistingGroupScorer(this.dynamicWeights)
-            ];
+            
+            // Only create enabled scorers
+            this.scorers = [];
+            if (CONFIG.scorers.enabled.opener) {
+                this.scorers.push(new OpenerScorer(this.dynamicWeights));
+            }
+            if (CONFIG.scorers.enabled.contentType) {
+                this.scorers.push(new ContentTypeScorer(this.dynamicWeights));
+            }
+            if (CONFIG.scorers.enabled.hostname) {
+                this.scorers.push(new HostnameScorer(this.dynamicWeights));
+            }
+            if (CONFIG.scorers.enabled.keyword) {
+                this.scorers.push(new KeywordScorer(this.dynamicWeights));
+            }
+            if (CONFIG.scorers.enabled.existingGroup) {
+                this.scorers.push(new ExistingGroupScorer(this.dynamicWeights));
+            }
+            
             this.tabProposals = new Map();
         }
 
@@ -1122,7 +1201,7 @@
                     proposals.push(...scorerProposals);
                 });
 
-                if (context.aiResults.has(et.tab)) {
+                if (CONFIG.scorers.enabled.aiSuggestion && context.aiResults.has(et.tab)) {
                     const aiTopic = context.aiResults.get(et.tab);
                     if (aiTopic !== "Uncategorized") {
                         const aiProposal = {
@@ -2040,11 +2119,14 @@
 
         try {
             separatorsToSort = document.querySelectorAll('.vertical-pinned-tabs-container-separator');
-            if (separatorsToSort.length > 0) separatorsToSort.forEach(sep => sep.classList.add('separator-is-sorting'));
+            // Only add separator-is-sorting for manual sorts, not auto-sorts
+            if (separatorsToSort.length > 0 && !isAutoSortForNewTab) {
+                separatorsToSort.forEach(sep => sep.classList.add('separator-is-sorting'));
+            }
 
-            // Add brushing animation to sort button
+            // Add brushing animation to sort button (only for manual sorts)
             const sortButton = document.querySelector('#sort-button');
-            if (sortButton) {
+            if (sortButton && !isAutoSortForNewTab) {
                 sortButton.classList.add('brushing');
             }
 
@@ -2058,6 +2140,7 @@
             Logger.info(`📊 Detailed scoring: ${CONFIG.logging.showDetailedScoring}`);
             Logger.info(`⚖️ Weight changes: ${CONFIG.logging.showWeightChanges}`);
             Logger.info(`🎯 Grouping results: ${CONFIG.logging.showGroupingResults}`);
+            Logger.info(`🔧 Enabled scorers: ${Object.entries(CONFIG.scorers.enabled).filter(([_, enabled]) => enabled).map(([name]) => name).join(', ')}`);
 
             // --- Step 1: Analyze Environment & Determine Tabs to Consider ---
             const existingGroups = analyzeExistingGroups(currentWorkspaceId);
@@ -2109,6 +2192,17 @@
                 // Standard "Sort All" logic
                 rawTabsToConsider = TabFilters.getUngroupedTabs(currentWorkspaceId);
             }
+
+            // Filter out tabs with about:blank URL
+            rawTabsToConsider = rawTabsToConsider.filter(tab => {
+                try {
+                    const browser = tab.linkedBrowser || tab._linkedBrowser || gBrowser?.getBrowserForTab?.(tab);
+                    const url = browser?.currentURI?.spec;
+                    return url !== 'about:blank';
+                } catch {
+                    return true;
+                }
+            });
 
             if (rawTabsToConsider.length === 0) {
                 isSorting = false; return;
@@ -2250,13 +2344,16 @@
             Logger.error("Error during overall sorting process:", error);
         } finally {
             isSorting = false;
-            if (separatorsToSort.length > 0) separatorsToSort.forEach(sep => {
-                if (sep?.isConnected) sep.classList.remove('separator-is-sorting');
-            });
+            // Only remove separator-is-sorting for manual sorts, not auto-sorts
+            if (separatorsToSort.length > 0 && !isAutoSortForNewTab) {
+                separatorsToSort.forEach(sep => {
+                    if (sep?.isConnected) sep.classList.remove('separator-is-sorting');
+                });
+            }
 
-            // Remove brushing animation from sort button
+            // Remove brushing animation from sort button (only for manual sorts)
             const sortButton = document.querySelector('#sort-button');
-            if (sortButton) {
+            if (sortButton && !isAutoSortForNewTab) {
                 sortButton.classList.remove('brushing');
             }
 

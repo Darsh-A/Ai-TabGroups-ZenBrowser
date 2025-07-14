@@ -10,7 +10,7 @@ Advanced AI-powered tab management with intelligent grouping, auto-sorting, and 
 
 ## 📦 Installation
 
-### 1. Through Sine (R)
+### 1. Through Sine (Recommended)
 Sine is a community-driven mod/theme manager for all Firefox-based browsers.
 Install it [here](https://github.com/CosmoCreeper/Sine)
 

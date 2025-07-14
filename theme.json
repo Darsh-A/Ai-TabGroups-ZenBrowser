@@ -18,6 +18,7 @@
         "JavaScript",
         "Darsh A"
     ],
+    "modules": "Anoms12/advanced-tab-groups", 
     "createdAt": "2025-05-26",
     "updatedAt": "2025-07-14",
     "fork": ["zen"]

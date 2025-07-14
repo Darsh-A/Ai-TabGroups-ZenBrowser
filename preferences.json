@@ -7,7 +7,7 @@
   },
   {
     "type": "text",
-    "label": "Make sure to Clear Startup Cache in the browser settings to take effect",
+    "label": "‼️Make sure to Clear Startup Cache in the browser settings to take effect‼️",
     "margin": "20px 0 15px 0",
     "size": "20px"
   },
@@ -21,25 +21,36 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.aiOnlyGrouping",
     "label": "Let AI handle all grouping logic (bypasses deterministic scoring)",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.buttons.autoHide",
     "label": "Auto-hide sort and clear buttons (show on hover)",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.colorSettings.randomStart",
     "label": "Start with random group color (false = always start with blue)",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.semanticAnalysis.enabled",
     "label": "Enable semantic content type analysis",
-    "default": true
+    "default": true,
+    "restart": true
+  },
+    {
+    "type": "checkbox",
+    "property": "extensions.tidytabs.disableAIDuringAutoSort",
+    "label": "Disable AI during auto-sort operations (Requests increase significantly if enabled)",
+    "default": false,
+    "restart": true
   },
 
   {
@@ -51,14 +62,16 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.gemini.enabled",
     "label": "Enable Google Gemini API provider",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.gemini.apiKey",
     "label": "Google Gemini API key",
     "default": "",
-    "sensitive": true
+    "sensitive": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -71,20 +84,23 @@
       { "label": "Gemini 2.5 Flash Lite Preview", "value": "gemini-2.5-flash-lite-preview-06-17" },
       { "label": "Gemini 1.5 Flash", "value": "gemini-1.5-flash" },
       { "label": "Gemini 1.5 Pro", "value": "gemini-1.5-pro" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.openai.enabled",
     "label": "Enable OpenAI API provider",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.openai.apiKey",
     "label": "OpenAI API key",
     "default": "",
-    "sensitive": true
+    "sensitive": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -98,20 +114,23 @@
       { "label": "GPT-4o Mini", "value": "gpt-4o-mini" },
       { "label": "GPT-4 Turbo", "value": "gpt-4-turbo" },
       { "label": "GPT-3.5 Turbo", "value": "gpt-3.5-turbo" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.anthropic.enabled",
     "label": "Enable Anthropic API provider",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.anthropic.apiKey",
     "label": "Anthropic API key",
     "default": "",
-    "sensitive": true
+    "sensitive": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -124,20 +143,23 @@
       { "label": "Claude 3.5 Sonnet", "value": "claude-3-5-sonnet-20241022" },
       { "label": "Claude 3.5 Haiku", "value": "claude-3-5-haiku-20241022" },
       { "label": "Claude 3 Haiku", "value": "claude-3-haiku-20240307" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.mistral.enabled",
     "label": "Enable Mistral AI provider",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.mistral.apiKey",
     "label": "Mistral API key",
     "default": "",
-    "sensitive": true
+    "sensitive": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -150,20 +172,23 @@
       { "label": "Mistral Large Latest", "value": "mistral-large-latest" },
       { "label": "Mistral Small Latest", "value": "mistral-small-latest" },
       { "label": "Open Mistral 7B", "value": "open-mistral-7b" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.deepseek.enabled",
     "label": "Enable DeepSeek AI provider",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.deepseek.apiKey",
     "label": "DeepSeek API key",
     "default": "",
-    "sensitive": true
+    "sensitive": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -175,25 +200,29 @@
     "options": [
       { "label": "DeepSeek Chat", "value": "deepseek-chat" },
       { "label": "DeepSeek Coder", "value": "deepseek-coder" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.apiConfig.ollama.enabled",
     "label": "Enable Ollama AI provider (Local)",
-    "default": false
+    "default": false,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.ollama.endpoint",
     "label": "Ollama API endpoint URL",
-    "default": "http://localhost:11434/api/generate"
+    "default": "http://localhost:11434/api/generate",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.ollama.model",
     "label": "Ollama model name",
-    "default": "llama3.1:latest"
+    "default": "llama3.1:latest",
+    "restart": true
   },
 
   {
@@ -205,37 +234,43 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.autoSortNewTabs.enabled",
     "label": "Enable automatic sorting of newly created tabs",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.autoSortNewTabs.delay",
     "label": "Delay in milliseconds before auto-sorting new tabs",
-    "default": "2000"
+    "default": "2000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.autoSortNewTabs.maxTabsToSort",
     "label": "Maximum number of tabs to consider for auto-sort mode",
-    "default": "10"
+    "default": "10",
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.autoSortOnURLChange.enabled",
     "label": "Enable automatic sorting when selected tab URL changes",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.autoSortOnURLChange.delay",
     "label": "Delay in milliseconds before auto-sorting after URL change",
-    "default": "2000"
+    "default": "2000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.autoSortOnURLChange.debounceTime",
     "label": "Minimum time between auto-sorts for the same tab (debounce)",
-    "default": "500"
+    "default": "500",
+    "restart": true
   },
 
   {
@@ -247,7 +282,8 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.logging.enabled",
     "label": "Enable logging",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "dropdown",
@@ -262,25 +298,29 @@
       { "label": "Warning", "value": "warn" },
       { "label": "Error", "value": "error" },
       { "label": "None", "value": "none" }
-    ]
+    ],
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.logging.showDetailedScoring",
     "label": "Show detailed individual scorer information",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.logging.showWeightChanges",
     "label": "Show dynamic weight adjustments in logs",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.logging.showGroupingResults",
     "label": "Show final grouping results in logs",
-    "default": true
+    "default": true,
+    "restart": true
   },
 
   {
@@ -304,37 +344,43 @@
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.existingGroup",
     "label": "Weight for existing group similarity (highest priority)",
-    "default": "0.90"
+    "default": "0.90",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.opener",
     "label": "Weight for opener relationship scoring",
-    "default": "0.85"
+    "default": "0.85",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.contentType",
     "label": "Weight for content type similarity",
-    "default": "0.80"
+    "default": "0.80",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.hostname",
     "label": "Weight for hostname/domain similarity",
-    "default": "0.75"
+    "default": "0.75",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.aiSuggestion",
     "label": "Weight for AI-suggested categories",
-    "default": "0.70"
+    "default": "0.70",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.scoringWeights.keyword",
     "label": "Weight for keyword similarity",
-    "default": "0.60"
+    "default": "0.60",
+    "restart": true
   },
 
   {
@@ -346,37 +392,43 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.existingGroup",
     "label": "Enable existing group scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.opener",
     "label": "Enable opener relationship scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.contentType",
     "label": "Enable content type scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.hostname",
     "label": "Enable hostname scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.aiSuggestion",
     "label": "Enable AI suggestion scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.scorers.enabled.keyword",
     "label": "Enable keyword scoring",
-    "default": true
+    "default": true,
+    "restart": true
   },
 
   {
@@ -388,31 +440,36 @@
     "type": "checkbox",
     "property": "extensions.tidytabs.dynamicWeights.enabled",
     "label": "Enable dynamic weight adaptation",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "checkbox",
     "property": "extensions.tidytabs.dynamicWeights.openerTimeTracking.enabled",
     "label": "Enable time-based opener relationship tracking",
-    "default": true
+    "default": true,
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentOpenerBoost",
     "label": "Score boost for recent opener relationships",
-    "default": "0.20"
+    "default": "0.20",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentThreshold",
     "label": "Recent threshold in milliseconds (5 minutes default)",
-    "default": "300000"
+    "default": "300000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.openerTimeTracking.decayHalfLife",
     "label": "Decay half-life in milliseconds (15 minutes default)",
-    "default": "900000"
+    "default": "900000",
+    "restart": true
   },
 
   {
@@ -424,37 +481,43 @@
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.existingGroup",
     "label": "Existing group weight for small workspaces",
-    "default": "0.95"
+    "default": "0.95",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.hostname",
     "label": "Hostname weight for small workspaces",
-    "default": "0.85"
+    "default": "0.85",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.opener",
     "label": "Opener weight for small workspaces",
-    "default": "0.80"
+    "default": "0.80",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.contentType",
     "label": "Content type weight for small workspaces",
-    "default": "0.75"
+    "default": "0.75",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.aiSuggestion",
     "label": "AI suggestion weight for small workspaces",
-    "default": "0.70"
+    "default": "0.70",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.small.keyword",
     "label": "Keyword weight for small workspaces",
-    "default": "0.60"
+    "default": "0.60",
+    "restart": true
   },
 
   {
@@ -466,37 +529,43 @@
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.existingGroup",
     "label": "Existing group weight for medium workspaces",
-    "default": "0.95"
+    "default": "0.95",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.opener",
     "label": "Opener weight for medium workspaces",
-    "default": "0.85"
+    "default": "0.85",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.hostname",
     "label": "Hostname weight for medium workspaces",
-    "default": "0.80"
+    "default": "0.80",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.aiSuggestion",
     "label": "AI suggestion weight for medium workspaces",
-    "default": "0.75"
+    "default": "0.75",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.contentType",
     "label": "Content type weight for medium workspaces",
-    "default": "0.70"
+    "default": "0.70",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.keyword",
     "label": "Keyword weight for medium workspaces",
-    "default": "0.60"
+    "default": "0.60",
+    "restart": true
   },
 
   {
@@ -508,37 +577,43 @@
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.existingGroup",
     "label": "Existing group weight for large workspaces",
-    "default": "0.95"
+    "default": "0.95",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.aiSuggestion",
     "label": "AI suggestion weight for large workspaces (higher for complex scenarios)",
-    "default": "0.90"
+    "default": "0.90",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.hostname",
     "label": "Hostname weight for large workspaces",
-    "default": "0.85"
+    "default": "0.85",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.opener",
     "label": "Opener weight for large workspaces",
-    "default": "0.75"
+    "default": "0.75",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.contentType",
     "label": "Content type weight for large workspaces",
-    "default": "0.70"
+    "default": "0.70",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.dynamicWeights.sizeProfiles.large.keyword",
     "label": "Keyword weight for large workspaces",
-    "default": "0.60"
+    "default": "0.60",
+    "restart": true
   },
 
   {
@@ -550,13 +625,15 @@
     "type": "string",
     "property": "extensions.tidytabs.thresholds.minGroupingScore",
     "label": "Minimum score required for grouping tabs together",
-    "default": "0.55"
+    "default": "0.55",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.thresholds.minTabsForNewGroup",
     "label": "Minimum tabs required to create a new group",
-    "default": "1"
+    "default": "1",
+    "restart": true
   },
 
   {
@@ -568,108 +645,126 @@
     "type": "string",
     "property": "extensions.tidytabs.consolidationDistanceThreshold",
     "label": "Levenshtein distance threshold for consolidating similar group names",
-    "default": "2"
+    "default": "2",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.minKeywordLength",
     "label": "Minimum keyword length for title analysis",
-    "default": "3"
+    "default": "3",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.openai.apiBaseUrl",
     "label": "OpenAI API base URL",
-    "default": "https://api.openai.com/v1/chat/completions"
+    "default": "https://api.openai.com/v1/chat/completions",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.openai.temperature",
     "label": "OpenAI temperature setting (0.0-2.0)",
-    "default": "0.1"
+    "default": "0.1",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.openai.maxTokens",
     "label": "OpenAI maximum tokens",
-    "default": "1000"
+    "default": "1000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.anthropic.apiBaseUrl",
     "label": "Anthropic API base URL",
-    "default": "https://api.anthropic.com/v1/messages"
+    "default": "https://api.anthropic.com/v1/messages",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.anthropic.version",
     "label": "Anthropic API version",
-    "default": "2023-06-01"
+    "default": "2023-06-01",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.anthropic.temperature",
     "label": "Anthropic temperature setting",
-    "default": "0.1"
+    "default": "0.1",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.anthropic.maxTokens",
     "label": "Anthropic maximum tokens",
-    "default": "1000"
+    "default": "1000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.mistral.apiBaseUrl",
     "label": "Mistral API base URL",
-    "default": "https://api.mistral.ai/v1/chat/completions"
+    "default": "https://api.mistral.ai/v1/chat/completions",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.mistral.temperature",
     "label": "Mistral temperature setting",
-    "default": "0.1"
+    "default": "0.1",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.mistral.maxTokens",
     "label": "Mistral maximum tokens",
-    "default": "1000"
+    "default": "1000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.deepseek.apiBaseUrl",
     "label": "DeepSeek API base URL",
-    "default": "https://api.deepseek.com/chat/completions"
+    "default": "https://api.deepseek.com/chat/completions",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.deepseek.temperature",
     "label": "DeepSeek temperature setting",
-    "default": "0.1"
+    "default": "0.1",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.deepseek.maxTokens",
     "label": "DeepSeek maximum tokens",
-    "default": "1000"
+    "default": "1000",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.gemini.apiBaseUrl",
     "label": "Gemini API base URL",
-    "default": "https://generativelanguage.googleapis.com/v1beta/models/"
+    "default": "https://generativelanguage.googleapis.com/v1beta/models/",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.gemini.generationConfig.temperature",
     "label": "Gemini temperature setting",
-    "default": "0.1"
+    "default": "0.1",
+    "restart": true
   },
   {
     "type": "string",
     "property": "extensions.tidytabs.apiConfig.gemini.generationConfig.candidateCount",
     "label": "Gemini candidate count",
-    "default": "1"
+    "default": "1",
+    "restart": true
   }
 ]

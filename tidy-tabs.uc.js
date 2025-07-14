@@ -124,6 +124,7 @@
     const CONSOLIDATION_DISTANCE_THRESHOLD_PREF = "extensions.tidytabs.consolidationDistanceThreshold";
     const MIN_KEYWORD_LENGTH_PREF = "extensions.tidytabs.minKeywordLength";
     const SEMANTIC_ANALYSIS_ENABLED_PREF = "extensions.tidytabs.semanticAnalysis.enabled";
+    const DISABLE_AI_DURING_AUTOSORT_PREF = "extensions.tidytabs.disableAIDuringAutoSort";
 
     // Helper function to read preferences with fallbacks
     const getPref = (prefName, defaultValue = "") => {
@@ -413,6 +414,7 @@
 
         consolidationDistanceThreshold: getPref(CONSOLIDATION_DISTANCE_THRESHOLD_PREF, 2),
         minKeywordLength: getPref(MIN_KEYWORD_LENGTH_PREF, 3),
+        disableAIDuringAutoSort: getPref(DISABLE_AI_DURING_AUTOSORT_PREF, true), // Set to true to disable AI calls during auto-sort to reduce API usage (ignored when aiOnlyGrouping is enabled)
         groupColors: [
             "blue", "red", "yellow", "green", "pink", "purple", "orange", "cyan", "gray"
         ],
@@ -1352,9 +1354,10 @@
     // --- SCORING SYSTEM ARCHITECTURE ---
 
     class TabGroupingEngine {
-        constructor(enrichedTabs, existingGroups) {
+        constructor(enrichedTabs, existingGroups, isAutoSort = false) {
             this.enrichedTabs = enrichedTabs;
             this.existingGroups = existingGroups;
+            this.isAutoSort = isAutoSort;
             this.dynamicWeights = getDynamicWeights(enrichedTabs, existingGroups);
             
             // Only create enabled scorers
@@ -1392,7 +1395,10 @@
                     proposals.push(...scorerProposals);
                 });
 
-                if (CONFIG.scorers.enabled.aiSuggestion && context.aiResults.has(et.tab)) {
+                // Skip AI suggestions during autosort if configured to do so
+                const shouldSkipAIDuringAutoSort = this.isAutoSort && CONFIG.disableAIDuringAutoSort;
+                
+                if (CONFIG.scorers.enabled.aiSuggestion && !shouldSkipAIDuringAutoSort && context.aiResults.has(et.tab)) {
                     const aiTopic = context.aiResults.get(et.tab);
                     if (aiTopic !== "Uncategorized") {
                         const aiProposal = {
@@ -2558,6 +2564,7 @@
             Logger.info(`🏢 Workspace: ${currentWorkspaceId}`);
             Logger.info(`🔧 AI-only grouping: ${CONFIG.aiOnlyGrouping}`);
             Logger.info(`🤖 AI providers enabled: ${Object.entries(CONFIG.apiConfig).filter(([name, config]) => config.enabled && name !== 'prompts').map(([name]) => name).join(', ') || 'None'}`);
+            Logger.info(`🚫 Disable AI during auto-sort: ${CONFIG.disableAIDuringAutoSort}${CONFIG.aiOnlyGrouping ? ' (ignored - AI-only mode)' : ''}`);
             Logger.info(`📊 Detailed scoring: ${CONFIG.logging.showDetailedScoring}`);
             Logger.info(`⚖️ Weight changes: ${CONFIG.logging.showWeightChanges}`);
             Logger.info(`🎯 Grouping results: ${CONFIG.logging.showGroupingResults}`);
@@ -2641,7 +2648,12 @@
 
             let finalGroups = {};
 
+            // Check if we should skip AI during autosort
+            // NOTE: Never skip AI when aiOnlyGrouping is enabled, since AI is the only grouping method available
+            const shouldSkipAIDuringAutoSort = isAutoSortForNewTab && CONFIG.disableAIDuringAutoSort && !CONFIG.aiOnlyGrouping;
+
             if (CONFIG.aiOnlyGrouping) {
+                // In AI-only mode, always use AI regardless of autosort setting
                 const aiInputData = enrichedTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType }));
                 const aiResults = await askAIForMultipleTopics(aiInputData, [...existingGroups.keys()]);
                 aiResults.forEach((topic, tab) => {
@@ -2652,19 +2664,26 @@
                 });
             } else {
                 // --- Step 2: First Pass Grouping ---
-                const aiResults = await askAIForMultipleTopics(
-                    enrichedTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
-                    [...existingGroups.keys()]
-                );
+                let aiResults = new Map();
+                if (!shouldSkipAIDuringAutoSort) {
+                    aiResults = await askAIForMultipleTopics(
+                        enrichedTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
+                        [...existingGroups.keys()]
+                    );
+                } else {
+                    Logger.info(`🤖 Skipping AI calls during auto-sort (disableAIDuringAutoSort is enabled)`);
+                    // Create empty AI results to maintain compatibility
+                    enrichedTabs.forEach(et => aiResults.set(et.tab, "Uncategorized"));
+                }
 
-                const engine = new TabGroupingEngine(enrichedTabs, existingGroups);
+                const engine = new TabGroupingEngine(enrichedTabs, existingGroups, isAutoSortForNewTab);
                 engine.generateProposals({ aiResults });
                 const { finalGroups: firstPassGroups, leftoverTabs } = engine.resolveGroupAssignments();
 
                 finalGroups = firstPassGroups;
 
                 // --- Step 3: Second Pass for Leftovers ---
-                if (leftoverTabs.length > 0) {
+                if (leftoverTabs.length > 0 && !shouldSkipAIDuringAutoSort) {
                     const secondPassAiResults = await askAIForMultipleTopics(
                         leftoverTabs.map(et => ({ tab: et.tab, data: et.data, contentTypeHint: et.contentType })),
                         [...existingGroups.keys(), ...Object.keys(finalGroups)] // Provide full context
@@ -2676,6 +2695,8 @@
                             finalGroups[topic].push(tab);
                         }
                     });
+                } else if (leftoverTabs.length > 0 && shouldSkipAIDuringAutoSort) {
+                    Logger.info(`🤖 Skipping second pass AI calls during auto-sort`);
                 }
             }
 

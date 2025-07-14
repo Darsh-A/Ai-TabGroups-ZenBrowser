@@ -1,0 +1,648 @@
+{
+  "description": "Comprehensive configuration preferences for AI Tab Groups (Tidy Tabs + Tab Sort Clear)",
+  "preferences": {
+    
+    "tab_sort_clear_settings": {
+      "description": "Settings for tab_sort_clear.uc.js - Simple AI-powered tab sorting and clearing",
+      "ai_model_selection": {
+        "extensions.tabgroups.ai_model": {
+          "type": "string",
+          "default": "1",
+          "description": "AI model selection: '1' for Gemini, '2' for Ollama, '3' for Mistral",
+          "options": ["1", "2", "3"]
+        }
+      },
+      "ollama_config": {
+        "extensions.tabgroups.ollama_endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "description": "Ollama API endpoint URL"
+        },
+        "extensions.tabgroups.ollama_model": {
+          "type": "string",
+          "default": "llama3.2",
+          "description": "Ollama model name to use"
+        }
+      },
+      "gemini_config": {
+        "extensions.tabgroups.gemini_api_key": {
+          "type": "string",
+          "default": "",
+          "description": "Google Gemini API key",
+          "sensitive": true
+        },
+        "extensions.tabgroups.gemini_model": {
+          "type": "string",
+          "default": "gemini-2.0-flash",
+          "description": "Gemini model name",
+          "options": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+        }
+      },
+      "mistral_config": {
+        "extensions.tabgroups.mistral_api_key": {
+          "type": "string",
+          "default": "",
+          "description": "Mistral AI API key",
+          "sensitive": true
+        },
+        "extensions.tabgroups.mistral_model": {
+          "type": "string",
+          "default": "mistral-large-latest",
+          "description": "Mistral model name",
+          "options": ["mistral-large-latest", "mistral-small-latest", "open-mistral-7b"]
+        }
+      }
+    },
+
+    "tidy_tabs_settings": {
+      "description": "Settings for tidy-tabs.uc.js - Advanced AI-powered tab management with multiple providers",
+      
+      "logging_control": {
+        "description": "Control logging behavior and verbosity",
+        "extensions.tidytabs.logging.enabled": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable or disable logging"
+        },
+        "extensions.tidytabs.logging.level": {
+          "type": "string",
+          "default": "info",
+          "description": "Logging level",
+          "options": ["debug", "info", "warn", "error", "none"]
+        },
+        "extensions.tidytabs.logging.showDetailedScoring": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Show detailed individual scorer information"
+        },
+        "extensions.tidytabs.logging.showWeightChanges": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Show dynamic weight adjustments in logs"
+        },
+        "extensions.tidytabs.logging.showGroupingResults": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Show final grouping results in logs"
+        }
+      },
+
+      "core_behavior": {
+        "description": "Core behavior and feature toggles",
+        "extensions.tidytabs.aiOnlyGrouping": {
+          "type": "checkbox",
+          "default": false,
+          "description": "Let AI handle all grouping logic (bypasses deterministic scoring)"
+        }
+      },
+
+      "auto_sort_new_tabs": {
+        "description": "Automatically sort new tabs as they are created",
+        "extensions.tidytabs.autoSortNewTabs.enabled": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable automatic sorting of newly created tabs"
+        },
+        "extensions.tidytabs.autoSortNewTabs.delay": {
+          "type": "integer",
+          "default": 2000,
+          "description": "Delay in milliseconds before auto-sorting new tabs"
+        },
+        "extensions.tidytabs.autoSortNewTabs.maxTabsToSort": {
+          "type": "integer",
+          "default": 10,
+          "description": "Maximum number of tabs to consider for auto-sort mode"
+        }
+      },
+
+      "auto_sort_url_changes": {
+        "description": "Automatically sort tabs when their URL changes",
+        "extensions.tidytabs.autoSortOnURLChange.enabled": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable automatic sorting when selected tab URL changes"
+        },
+        "extensions.tidytabs.autoSortOnURLChange.delay": {
+          "type": "integer",
+          "default": 2000,
+          "description": "Delay in milliseconds before auto-sorting after URL change"
+        },
+        "extensions.tidytabs.autoSortOnURLChange.debounceTime": {
+          "type": "integer",
+          "default": 500,
+          "description": "Minimum time between auto-sorts for the same tab (debounce)"
+        }
+      },
+
+      "ui_settings": {
+        "description": "User interface and visual settings",
+        "extensions.tidytabs.buttons.autoHide": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Auto-hide sort and clear buttons (show on hover)"
+        },
+        "extensions.tidytabs.colorSettings.randomStart": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Start with random group color (false = always start with blue)"
+        }
+      },
+
+      "scoring_weights": {
+        "description": "Base scoring weights for different grouping factors",
+        "extensions.tidytabs.scoringWeights.existingGroup": {
+          "type": "string",
+          "default": "0.90",
+          "description": "Weight for existing group similarity (highest priority)"
+        },
+        "extensions.tidytabs.scoringWeights.opener": {
+          "type": "string",
+          "default": "0.85",
+          "description": "Weight for opener relationship scoring"
+        },
+        "extensions.tidytabs.scoringWeights.contentType": {
+          "type": "string",
+          "default": "0.80",
+          "description": "Weight for content type similarity"
+        },
+        "extensions.tidytabs.scoringWeights.hostname": {
+          "type": "string",
+          "default": "0.75",
+          "description": "Weight for hostname/domain similarity"
+        },
+        "extensions.tidytabs.scoringWeights.aiSuggestion": {
+          "type": "string",
+          "default": "0.70",
+          "description": "Weight for AI-suggested categories"
+        },
+        "extensions.tidytabs.scoringWeights.keyword": {
+          "type": "string",
+          "default": "0.60",
+          "description": "Weight for keyword similarity"
+        }
+      },
+
+      "scorer_toggles": {
+        "description": "Enable or disable individual scoring mechanisms",
+        "extensions.tidytabs.scorers.enabled.existingGroup": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable existing group scoring"
+        },
+        "extensions.tidytabs.scorers.enabled.opener": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable opener relationship scoring"
+        },
+        "extensions.tidytabs.scorers.enabled.contentType": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable content type scoring"
+        },
+        "extensions.tidytabs.scorers.enabled.hostname": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable hostname scoring"
+        },
+        "extensions.tidytabs.scorers.enabled.aiSuggestion": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable AI suggestion scoring"
+        },
+        "extensions.tidytabs.scorers.enabled.keyword": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable keyword scoring"
+        }
+      },
+
+      "dynamic_weights": {
+        "description": "Dynamic weight adaptation based on context",
+        "general": {
+          "extensions.tidytabs.dynamicWeights.enabled": {
+            "type": "checkbox",
+            "default": true,
+            "description": "Enable dynamic weight adaptation"
+          }
+        },
+        "opener_time_tracking": {
+          "extensions.tidytabs.dynamicWeights.openerTimeTracking.enabled": {
+            "type": "checkbox",
+            "default": true,
+            "description": "Enable time-based opener relationship tracking"
+          },
+          "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentOpenerBoost": {
+            "type": "string",
+            "default": "0.20",
+            "description": "Score boost for recent opener relationships"
+          },
+          "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentThreshold": {
+            "type": "integer",
+            "default": 300000,
+            "description": "Recent threshold in milliseconds (5 minutes default)"
+          },
+          "extensions.tidytabs.dynamicWeights.openerTimeTracking.decayHalfLife": {
+            "type": "integer",
+            "default": 900000,
+            "description": "Decay half-life in milliseconds (15 minutes default)"
+          }
+        },
+        "size_profiles_small": {
+          "description": "Weight profiles for small workspaces (1-5 tabs)",
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.existingGroup": {
+            "type": "string",
+            "default": "0.95",
+            "description": "Existing group weight for small workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.hostname": {
+            "type": "string",
+            "default": "0.85",
+            "description": "Hostname weight for small workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.opener": {
+            "type": "string",
+            "default": "0.80",
+            "description": "Opener weight for small workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.contentType": {
+            "type": "string",
+            "default": "0.75",
+            "description": "Content type weight for small workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.aiSuggestion": {
+            "type": "string",
+            "default": "0.70",
+            "description": "AI suggestion weight for small workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.small.keyword": {
+            "type": "string",
+            "default": "0.60",
+            "description": "Keyword weight for small workspaces"
+          }
+        },
+        "size_profiles_medium": {
+          "description": "Weight profiles for medium workspaces (6-15 tabs)",
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.existingGroup": {
+            "type": "string",
+            "default": "0.95",
+            "description": "Existing group weight for medium workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.opener": {
+            "type": "string",
+            "default": "0.85",
+            "description": "Opener weight for medium workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.hostname": {
+            "type": "string",
+            "default": "0.80",
+            "description": "Hostname weight for medium workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.aiSuggestion": {
+            "type": "string",
+            "default": "0.75",
+            "description": "AI suggestion weight for medium workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.contentType": {
+            "type": "string",
+            "default": "0.70",
+            "description": "Content type weight for medium workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.keyword": {
+            "type": "string",
+            "default": "0.60",
+            "description": "Keyword weight for medium workspaces"
+          }
+        },
+        "size_profiles_large": {
+          "description": "Weight profiles for large workspaces (16+ tabs)",
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.existingGroup": {
+            "type": "string",
+            "default": "0.95",
+            "description": "Existing group weight for large workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.aiSuggestion": {
+            "type": "string",
+            "default": "0.90",
+            "description": "AI suggestion weight for large workspaces (higher for complex scenarios)"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.hostname": {
+            "type": "string",
+            "default": "0.85",
+            "description": "Hostname weight for large workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.opener": {
+            "type": "string",
+            "default": "0.75",
+            "description": "Opener weight for large workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.contentType": {
+            "type": "string",
+            "default": "0.70",
+            "description": "Content type weight for large workspaces"
+          },
+          "extensions.tidytabs.dynamicWeights.sizeProfiles.large.keyword": {
+            "type": "string",
+            "default": "0.60",
+            "description": "Keyword weight for large workspaces"
+          }
+        }
+      },
+
+      "thresholds": {
+        "description": "Scoring and grouping thresholds",
+        "extensions.tidytabs.thresholds.minGroupingScore": {
+          "type": "string",
+          "default": "0.55",
+          "description": "Minimum score required for grouping tabs together"
+        },
+        "extensions.tidytabs.thresholds.minTabsForNewGroup": {
+          "type": "integer",
+          "default": 1,
+          "description": "Minimum tabs required to create a new group"
+        }
+      },
+
+      "ai_providers": {
+        "description": "AI API provider configurations (tried in order: OpenAI → Anthropic → Mistral → DeepSeek → Gemini)",
+        
+        "ollama": {
+          "description": "Local Ollama instance configuration",
+          "extensions.tidytabs.apiConfig.ollama.enabled": {
+            "type": "checkbox",
+            "default": false,
+            "description": "Enable Ollama AI provider"
+          },
+          "extensions.tidytabs.apiConfig.ollama.endpoint": {
+            "type": "string",
+            "default": "http://localhost:11434/api/generate",
+            "description": "Ollama API endpoint URL"
+          },
+          "extensions.tidytabs.apiConfig.ollama.model": {
+            "type": "string",
+            "default": "llama3.1:latest",
+            "description": "Ollama model name"
+          }
+        },
+
+        "openai": {
+          "description": "OpenAI API configuration",
+          "extensions.tidytabs.apiConfig.openai.enabled": {
+            "type": "checkbox",
+            "default": false,
+            "description": "Enable OpenAI API provider"
+          },
+          "extensions.tidytabs.apiConfig.openai.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI API key",
+            "sensitive": true
+          },
+          "extensions.tidytabs.apiConfig.openai.model": {
+            "type": "string",
+            "default": "gpt-4o-mini",
+            "description": "OpenAI model name",
+            "options": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+          },
+          "extensions.tidytabs.apiConfig.openai.apiBaseUrl": {
+            "type": "string",
+            "default": "https://api.openai.com/v1/chat/completions",
+            "description": "OpenAI API base URL"
+          },
+          "extensions.tidytabs.apiConfig.openai.temperature": {
+            "type": "string",
+            "default": "0.1",
+            "description": "OpenAI temperature setting (0.0-2.0)"
+          },
+          "extensions.tidytabs.apiConfig.openai.maxTokens": {
+            "type": "integer",
+            "default": 1000,
+            "description": "OpenAI maximum tokens"
+          }
+        },
+
+        "anthropic": {
+          "description": "Anthropic Claude API configuration",
+          "extensions.tidytabs.apiConfig.anthropic.enabled": {
+            "type": "checkbox",
+            "default": false,
+            "description": "Enable Anthropic API provider"
+          },
+          "extensions.tidytabs.apiConfig.anthropic.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Anthropic API key",
+            "sensitive": true
+          },
+          "extensions.tidytabs.apiConfig.anthropic.model": {
+            "type": "string",
+            "default": "claude-3-haiku-20240307",
+            "description": "Anthropic model name",
+            "options": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-haiku-20240307"]
+          },
+          "extensions.tidytabs.apiConfig.anthropic.apiBaseUrl": {
+            "type": "string",
+            "default": "https://api.anthropic.com/v1/messages",
+            "description": "Anthropic API base URL"
+          },
+          "extensions.tidytabs.apiConfig.anthropic.version": {
+            "type": "string",
+            "default": "2023-06-01",
+            "description": "Anthropic API version"
+          },
+          "extensions.tidytabs.apiConfig.anthropic.temperature": {
+            "type": "string",
+            "default": "0.1",
+            "description": "Anthropic temperature setting"
+          },
+          "extensions.tidytabs.apiConfig.anthropic.maxTokens": {
+            "type": "integer",
+            "default": 1000,
+            "description": "Anthropic maximum tokens"
+          }
+        },
+
+        "mistral": {
+          "description": "Mistral AI API configuration",
+          "extensions.tidytabs.apiConfig.mistral.enabled": {
+            "type": "checkbox",
+            "default": false,
+            "description": "Enable Mistral AI provider"
+          },
+          "extensions.tidytabs.apiConfig.mistral.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Mistral API key",
+            "sensitive": true
+          },
+          "extensions.tidytabs.apiConfig.mistral.model": {
+            "type": "string",
+            "default": "mistral-small-latest",
+            "description": "Mistral model name",
+            "options": ["mistral-large-latest", "mistral-small-latest", "open-mistral-7b"]
+          },
+          "extensions.tidytabs.apiConfig.mistral.apiBaseUrl": {
+            "type": "string",
+            "default": "https://api.mistral.ai/v1/chat/completions",
+            "description": "Mistral API base URL"
+          },
+          "extensions.tidytabs.apiConfig.mistral.temperature": {
+            "type": "string",
+            "default": "0.1",
+            "description": "Mistral temperature setting"
+          },
+          "extensions.tidytabs.apiConfig.mistral.maxTokens": {
+            "type": "integer",
+            "default": 1000,
+            "description": "Mistral maximum tokens"
+          }
+        },
+
+        "deepseek": {
+          "description": "DeepSeek AI API configuration",
+          "extensions.tidytabs.apiConfig.deepseek.enabled": {
+            "type": "checkbox",
+            "default": false,
+            "description": "Enable DeepSeek AI provider"
+          },
+          "extensions.tidytabs.apiConfig.deepseek.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "DeepSeek API key",
+            "sensitive": true
+          },
+          "extensions.tidytabs.apiConfig.deepseek.model": {
+            "type": "string",
+            "default": "deepseek-chat",
+            "description": "DeepSeek model name",
+            "options": ["deepseek-chat", "deepseek-coder"]
+          },
+          "extensions.tidytabs.apiConfig.deepseek.apiBaseUrl": {
+            "type": "string",
+            "default": "https://api.deepseek.com/chat/completions",
+            "description": "DeepSeek API base URL"
+          },
+          "extensions.tidytabs.apiConfig.deepseek.temperature": {
+            "type": "string",
+            "default": "0.1",
+            "description": "DeepSeek temperature setting"
+          },
+          "extensions.tidytabs.apiConfig.deepseek.maxTokens": {
+            "type": "integer",
+            "default": 1000,
+            "description": "DeepSeek maximum tokens"
+          }
+        },
+
+        "gemini": {
+          "description": "Google Gemini API configuration",
+          "extensions.tidytabs.apiConfig.gemini.enabled": {
+            "type": "checkbox",
+            "default": true,
+            "description": "Enable Google Gemini API provider"
+          },
+          "extensions.tidytabs.apiConfig.gemini.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Google Gemini API key",
+            "sensitive": true
+          },
+          "extensions.tidytabs.apiConfig.gemini.model": {
+            "type": "string",
+            "default": "gemini-2.5-flash-lite-preview-06-17",
+            "description": "Gemini model name",
+            "options": ["gemini-2.5-flash-lite-preview-06-17", "gemini-1.5-flash", "gemini-1.5-pro"]
+          },
+          "extensions.tidytabs.apiConfig.gemini.apiBaseUrl": {
+            "type": "string",
+            "default": "https://generativelanguage.googleapis.com/v1beta/models/",
+            "description": "Gemini API base URL"
+          },
+          "extensions.tidytabs.apiConfig.gemini.generationConfig.temperature": {
+            "type": "string",
+            "default": "0.1",
+            "description": "Gemini temperature setting"
+          },
+          "extensions.tidytabs.apiConfig.gemini.generationConfig.candidateCount": {
+            "type": "integer",
+            "default": 1,
+            "description": "Gemini candidate count"
+          }
+        }
+      },
+
+      "advanced_settings": {
+        "description": "Advanced configuration options",
+        "extensions.tidytabs.consolidationDistanceThreshold": {
+          "type": "integer",
+          "default": 2,
+          "description": "Levenshtein distance threshold for consolidating similar group names"
+        },
+        "extensions.tidytabs.minKeywordLength": {
+          "type": "integer",
+          "default": 3,
+          "description": "Minimum keyword length for title analysis"
+        },
+        "extensions.tidytabs.semanticAnalysis.enabled": {
+          "type": "checkbox",
+          "default": true,
+          "description": "Enable semantic content type analysis"
+        }
+      }
+    }
+  },
+
+  "setup_instructions": {
+    "description": "How to configure and use these preferences",
+    "steps": [
+      "1. Choose your AI provider(s): Set enabled=true for your preferred AI service(s)",
+      "2. Add API keys: Enter your API keys for enabled providers (mark as sensitive data)",
+      "3. Configure models: Select appropriate models for your use case and budget",
+      "4. Adjust behavior: Enable/disable auto-sorting features as needed", 
+      "5. Fine-tune scoring: Adjust weights and thresholds for your workflow",
+      "6. Test configuration: Monitor logs to see how grouping decisions are made"
+    ],
+    "recommended_configs": {
+      "minimal": {
+        "description": "Simple setup with just Gemini",
+        "settings": {
+          "extensions.tidytabs.apiConfig.gemini.enabled": true,
+          "extensions.tidytabs.apiConfig.gemini.apiKey": "YOUR_GEMINI_KEY",
+          "extensions.tidytabs.autoSortNewTabs.enabled": true,
+          "extensions.tidytabs.logging.level": "info"
+        }
+      },
+      "power_user": {
+        "description": "Multi-provider with detailed logging and fine-tuned scoring",
+        "settings": {
+          "extensions.tidytabs.apiConfig.openai.enabled": true,
+          "extensions.tidytabs.apiConfig.anthropic.enabled": true, 
+          "extensions.tidytabs.apiConfig.gemini.enabled": true,
+          "extensions.tidytabs.logging.showDetailedScoring": true,
+          "extensions.tidytabs.dynamicWeights.enabled": true,
+          "extensions.tidytabs.aiOnlyGrouping": false
+        }
+      },
+      "privacy_focused": {
+        "description": "Local-only processing with Ollama",
+        "settings": {
+          "extensions.tidytabs.apiConfig.ollama.enabled": true,
+          "extensions.tidytabs.apiConfig.ollama.endpoint": "http://localhost:11434/api/generate",
+          "extensions.tidytabs.apiConfig.openai.enabled": false,
+          "extensions.tidytabs.apiConfig.anthropic.enabled": false,
+          "extensions.tidytabs.apiConfig.gemini.enabled": false
+        }
+      }
+    }
+  },
+
+  "migration_notes": {
+    "description": "Notes for users migrating from hardcoded configurations",
+    "important": [
+      "Float values (weights, temperatures) are stored as strings in Firefox preferences",
+      "API keys should be treated as sensitive data",
+      "Default values are used if preferences are not set",
+      "Changes take effect immediately without restart",
+      "Both scripts can coexist with different preference namespaces"
+    ]
+  }
+}

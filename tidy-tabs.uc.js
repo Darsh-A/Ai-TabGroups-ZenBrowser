@@ -1,113 +1,262 @@
-// VERSION 6.3.0 - Better Autosort logic and changes
+// VERSION 6.4.0 - Multi-AI Provider Support (OpenAI, Anthropic, Mistral, DeepSeek, Gemini)
 (() => {
     // --- Configuration ---
+
+    // Preference Keys for Logging
+    const LOGGING_ENABLED_PREF = "extensions.tidytabs.logging.enabled";
+    const LOGGING_LEVEL_PREF = "extensions.tidytabs.logging.level";
+    const LOGGING_SHOW_DETAILED_SCORING_PREF = "extensions.tidytabs.logging.showDetailedScoring";
+    const LOGGING_SHOW_WEIGHT_CHANGES_PREF = "extensions.tidytabs.logging.showWeightChanges";
+    const LOGGING_SHOW_GROUPING_RESULTS_PREF = "extensions.tidytabs.logging.showGroupingResults";
+
+    // Preference Keys for Core Settings
+    const AI_ONLY_GROUPING_PREF = "extensions.tidytabs.aiOnlyGrouping";
+
+    // Preference Keys for Auto-sort New Tabs
+    const AUTO_SORT_NEW_TABS_ENABLED_PREF = "extensions.tidytabs.autoSortNewTabs.enabled";
+    const AUTO_SORT_NEW_TABS_DELAY_PREF = "extensions.tidytabs.autoSortNewTabs.delay";
+    const AUTO_SORT_NEW_TABS_MAX_TABS_PREF = "extensions.tidytabs.autoSortNewTabs.maxTabsToSort";
+
+    // Preference Keys for Auto-sort URL Changes
+    const AUTO_SORT_URL_CHANGE_ENABLED_PREF = "extensions.tidytabs.autoSortOnURLChange.enabled";
+    const AUTO_SORT_URL_CHANGE_DELAY_PREF = "extensions.tidytabs.autoSortOnURLChange.delay";
+    const AUTO_SORT_URL_CHANGE_DEBOUNCE_PREF = "extensions.tidytabs.autoSortOnURLChange.debounceTime";
+
+    // Preference Keys for Button Settings
+    const BUTTONS_AUTO_HIDE_PREF = "extensions.tidytabs.buttons.autoHide";
+
+    // Preference Keys for Color Settings
+    const COLOR_RANDOM_START_PREF = "extensions.tidytabs.colorSettings.randomStart";
+
+    // Preference Keys for Scoring Weights
+    const SCORING_WEIGHTS_EXISTING_GROUP_PREF = "extensions.tidytabs.scoringWeights.existingGroup";
+    const SCORING_WEIGHTS_OPENER_PREF = "extensions.tidytabs.scoringWeights.opener";
+    const SCORING_WEIGHTS_CONTENT_TYPE_PREF = "extensions.tidytabs.scoringWeights.contentType";
+    const SCORING_WEIGHTS_HOSTNAME_PREF = "extensions.tidytabs.scoringWeights.hostname";
+    const SCORING_WEIGHTS_AI_SUGGESTION_PREF = "extensions.tidytabs.scoringWeights.aiSuggestion";
+    const SCORING_WEIGHTS_KEYWORD_PREF = "extensions.tidytabs.scoringWeights.keyword";
+
+    // Preference Keys for Scorer Enable/Disable Settings
+    const SCORERS_EXISTING_GROUP_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.existingGroup";
+    const SCORERS_OPENER_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.opener";
+    const SCORERS_CONTENT_TYPE_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.contentType";
+    const SCORERS_HOSTNAME_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.hostname";
+    const SCORERS_AI_SUGGESTION_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.aiSuggestion";
+    const SCORERS_KEYWORD_ENABLED_PREF = "extensions.tidytabs.scorers.enabled.keyword";
+
+    // Preference Keys for Dynamic Weights
+    const DYNAMIC_WEIGHTS_ENABLED_PREF = "extensions.tidytabs.dynamicWeights.enabled";
+    const DYNAMIC_WEIGHTS_OPENER_TIME_TRACKING_ENABLED_PREF = "extensions.tidytabs.dynamicWeights.openerTimeTracking.enabled";
+    const DYNAMIC_WEIGHTS_RECENT_OPENER_BOOST_PREF = "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentOpenerBoost";
+    const DYNAMIC_WEIGHTS_RECENT_THRESHOLD_PREF = "extensions.tidytabs.dynamicWeights.openerTimeTracking.recentThreshold";
+    const DYNAMIC_WEIGHTS_DECAY_HALF_LIFE_PREF = "extensions.tidytabs.dynamicWeights.openerTimeTracking.decayHalfLife";
+
+    // Preference Keys for Size Profiles (Small 1-5 tabs)
+    const SIZE_PROFILES_SMALL_EXISTING_GROUP_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.existingGroup";
+    const SIZE_PROFILES_SMALL_HOSTNAME_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.hostname";
+    const SIZE_PROFILES_SMALL_OPENER_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.opener";
+    const SIZE_PROFILES_SMALL_CONTENT_TYPE_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.contentType";
+    const SIZE_PROFILES_SMALL_AI_SUGGESTION_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.aiSuggestion";
+    const SIZE_PROFILES_SMALL_KEYWORD_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.small.keyword";
+
+    // Preference Keys for Size Profiles (Medium 6-15 tabs)
+    const SIZE_PROFILES_MEDIUM_EXISTING_GROUP_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.existingGroup";
+    const SIZE_PROFILES_MEDIUM_OPENER_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.opener";
+    const SIZE_PROFILES_MEDIUM_HOSTNAME_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.hostname";
+    const SIZE_PROFILES_MEDIUM_AI_SUGGESTION_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.aiSuggestion";
+    const SIZE_PROFILES_MEDIUM_CONTENT_TYPE_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.contentType";
+    const SIZE_PROFILES_MEDIUM_KEYWORD_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.medium.keyword";
+
+    // Preference Keys for Size Profiles (Large 16+ tabs)
+    const SIZE_PROFILES_LARGE_EXISTING_GROUP_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.existingGroup";
+    const SIZE_PROFILES_LARGE_AI_SUGGESTION_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.aiSuggestion";
+    const SIZE_PROFILES_LARGE_HOSTNAME_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.hostname";
+    const SIZE_PROFILES_LARGE_OPENER_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.opener";
+    const SIZE_PROFILES_LARGE_CONTENT_TYPE_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.contentType";
+    const SIZE_PROFILES_LARGE_KEYWORD_PREF = "extensions.tidytabs.dynamicWeights.sizeProfiles.large.keyword";
+
+    // Preference Keys for Thresholds
+    const THRESHOLDS_MIN_GROUPING_SCORE_PREF = "extensions.tidytabs.thresholds.minGroupingScore";
+    const THRESHOLDS_MIN_TABS_FOR_NEW_GROUP_PREF = "extensions.tidytabs.thresholds.minTabsForNewGroup";
+
+    // Preference Keys for AI APIs
+    const OLLAMA_ENABLED_PREF = "extensions.tidytabs.apiConfig.ollama.enabled";
+    const OLLAMA_ENDPOINT_PREF = "extensions.tidytabs.apiConfig.ollama.endpoint";
+    const OLLAMA_MODEL_PREF = "extensions.tidytabs.apiConfig.ollama.model";
+
+    const OPENAI_ENABLED_PREF = "extensions.tidytabs.apiConfig.openai.enabled";
+    const OPENAI_API_KEY_PREF = "extensions.tidytabs.apiConfig.openai.apiKey";
+    const OPENAI_MODEL_PREF = "extensions.tidytabs.apiConfig.openai.model";
+    const OPENAI_API_BASE_URL_PREF = "extensions.tidytabs.apiConfig.openai.apiBaseUrl";
+    const OPENAI_TEMPERATURE_PREF = "extensions.tidytabs.apiConfig.openai.temperature";
+    const OPENAI_MAX_TOKENS_PREF = "extensions.tidytabs.apiConfig.openai.maxTokens";
+
+    const ANTHROPIC_ENABLED_PREF = "extensions.tidytabs.apiConfig.anthropic.enabled";
+    const ANTHROPIC_API_KEY_PREF = "extensions.tidytabs.apiConfig.anthropic.apiKey";
+    const ANTHROPIC_MODEL_PREF = "extensions.tidytabs.apiConfig.anthropic.model";
+    const ANTHROPIC_API_BASE_URL_PREF = "extensions.tidytabs.apiConfig.anthropic.apiBaseUrl";
+    const ANTHROPIC_VERSION_PREF = "extensions.tidytabs.apiConfig.anthropic.version";
+    const ANTHROPIC_TEMPERATURE_PREF = "extensions.tidytabs.apiConfig.anthropic.temperature";
+    const ANTHROPIC_MAX_TOKENS_PREF = "extensions.tidytabs.apiConfig.anthropic.maxTokens";
+
+    const MISTRAL_ENABLED_PREF = "extensions.tidytabs.apiConfig.mistral.enabled";
+    const MISTRAL_API_KEY_PREF = "extensions.tidytabs.apiConfig.mistral.apiKey";
+    const MISTRAL_MODEL_PREF = "extensions.tidytabs.apiConfig.mistral.model";
+    const MISTRAL_API_BASE_URL_PREF = "extensions.tidytabs.apiConfig.mistral.apiBaseUrl";
+    const MISTRAL_TEMPERATURE_PREF = "extensions.tidytabs.apiConfig.mistral.temperature";
+    const MISTRAL_MAX_TOKENS_PREF = "extensions.tidytabs.apiConfig.mistral.maxTokens";
+
+    const DEEPSEEK_ENABLED_PREF = "extensions.tidytabs.apiConfig.deepseek.enabled";
+    const DEEPSEEK_API_KEY_PREF = "extensions.tidytabs.apiConfig.deepseek.apiKey";
+    const DEEPSEEK_MODEL_PREF = "extensions.tidytabs.apiConfig.deepseek.model";
+    const DEEPSEEK_API_BASE_URL_PREF = "extensions.tidytabs.apiConfig.deepseek.apiBaseUrl";
+    const DEEPSEEK_TEMPERATURE_PREF = "extensions.tidytabs.apiConfig.deepseek.temperature";
+    const DEEPSEEK_MAX_TOKENS_PREF = "extensions.tidytabs.apiConfig.deepseek.maxTokens";
+
+    const GEMINI_ENABLED_PREF = "extensions.tidytabs.apiConfig.gemini.enabled";
+    const GEMINI_API_KEY_PREF = "extensions.tidytabs.apiConfig.gemini.apiKey";
+    const GEMINI_MODEL_PREF = "extensions.tidytabs.apiConfig.gemini.model";
+    const GEMINI_API_BASE_URL_PREF = "extensions.tidytabs.apiConfig.gemini.apiBaseUrl";
+    const GEMINI_TEMPERATURE_PREF = "extensions.tidytabs.apiConfig.gemini.generationConfig.temperature";
+    const GEMINI_CANDIDATE_COUNT_PREF = "extensions.tidytabs.apiConfig.gemini.generationConfig.candidateCount";
+
+    // Preference Keys for Other Settings
+    const CONSOLIDATION_DISTANCE_THRESHOLD_PREF = "extensions.tidytabs.consolidationDistanceThreshold";
+    const MIN_KEYWORD_LENGTH_PREF = "extensions.tidytabs.minKeywordLength";
+    const SEMANTIC_ANALYSIS_ENABLED_PREF = "extensions.tidytabs.semanticAnalysis.enabled";
+
+    // Helper function to read preferences with fallbacks
+    const getPref = (prefName, defaultValue = "") => {
+        try {
+            const prefService = Services.prefs;
+            if (prefService.prefHasUserValue(prefName)) {
+                switch (prefService.getPrefType(prefName)) {
+                    case prefService.PREF_STRING:
+                        return prefService.getStringPref(prefName);
+                    case prefService.PREF_INT:
+                        return prefService.getIntPref(prefName);
+                    case prefService.PREF_BOOL:
+                        return prefService.getBoolPref(prefName);
+                }
+            }
+        } catch (e) {
+            console.warn(`Failed to read preference ${prefName}:`, e);
+        }
+        return defaultValue;
+    };
+
+    // Helper function to read float preferences (stored as strings)
+    const getFloatPref = (prefName, defaultValue = 0.0) => {
+        const value = getPref(prefName, defaultValue.toString());
+        return parseFloat(value);
+    };
+
     const CONFIG = {
         // --- Logging Control ---
         logging: {
-            enabled: true,
-            level: 'info', // 'debug', 'info', 'warn', 'error', 'none'
-            showDetailedScoring: true, // Show individual scorer details
-            showWeightChanges: true, // Show dynamic weight adjustments
-            showGroupingResults: true // Show final grouping results
+            enabled: getPref(LOGGING_ENABLED_PREF, true),
+            level: getPref(LOGGING_LEVEL_PREF, 'info'), // 'debug', 'info', 'warn', 'error', 'none'
+            showDetailedScoring: getPref(LOGGING_SHOW_DETAILED_SCORING_PREF, true), // Show individual scorer details
+            showWeightChanges: getPref(LOGGING_SHOW_WEIGHT_CHANGES_PREF, true), // Show dynamic weight adjustments
+            showGroupingResults: getPref(LOGGING_SHOW_GROUPING_RESULTS_PREF, true) // Show final grouping results
         },
 
-        aiOnlyGrouping: false, // << --- Set to true to let AI handle all grouping logic
+        aiOnlyGrouping: getPref(AI_ONLY_GROUPING_PREF, false), // Set to true to let AI handle all grouping logic
 
         // Auto-sort new tabs into groups automatically
         // This feature listens for new tab creation and automatically sorts them
         // without requiring manual button clicks
         autoSortNewTabs: {
-            enabled: true, // << --- Set to false to disable auto-sorting
-            delay: 2000, // Wait 1 second after tab creation before sorting
-            maxTabsToSort: 10, // Maximum number of tabs to consider for auto-sort mode
+            enabled: getPref(AUTO_SORT_NEW_TABS_ENABLED_PREF, true), // Set to false to disable auto-sorting
+            delay: getPref(AUTO_SORT_NEW_TABS_DELAY_PREF, 2000), // Wait 2 seconds after tab creation before sorting
+            maxTabsToSort: getPref(AUTO_SORT_NEW_TABS_MAX_TABS_PREF, 10), // Maximum number of tabs to consider for auto-sort mode
         },
 
         // Auto-sort when selected tab URL changes
         // This feature monitors the selected tab and triggers auto-sort when its URL changes
         autoSortOnURLChange: {
-            enabled: true, // << --- Set to false to disable URL change auto-sorting
-            delay: 2000, // Wait 2 seconds after URL change before sorting
-            debounceTime: 500, // Minimum time between auto-sorts for the same tab
+            enabled: getPref(AUTO_SORT_URL_CHANGE_ENABLED_PREF, true), // Set to false to disable URL change auto-sorting
+            delay: getPref(AUTO_SORT_URL_CHANGE_DELAY_PREF, 2000), // Wait 2 seconds after URL change before sorting
+            debounceTime: getPref(AUTO_SORT_URL_CHANGE_DEBOUNCE_PREF, 500), // Minimum time between auto-sorts for the same tab
         },
 
         // Button visibility settings
         buttons: {
-            autoHide: true // << --- Set to false to make buttons always visible
+            autoHide: getPref(BUTTONS_AUTO_HIDE_PREF, true) // Set to false to make buttons always visible
         },
 
         // Group color settings
         colorSettings: {
-            randomStart: true, // << --- Set to false to always start with blue (first color), true for random starting color
+            randomStart: getPref(COLOR_RANDOM_START_PREF, true), // Set to false to always start with blue (first color), true for random starting color
         },
 
         // --- Scoring Weights & Thresholds ---
         scoringWeights: {
-            existingGroup: 0.90,
-            opener: 0.85,
-            contentType: 0.80,
-            hostname: 0.75,
-            aiSuggestion: 0.70,
-            keyword: 0.60
+            existingGroup: getFloatPref(SCORING_WEIGHTS_EXISTING_GROUP_PREF, 0.90),
+            opener: getFloatPref(SCORING_WEIGHTS_OPENER_PREF, 0.85),
+            contentType: getFloatPref(SCORING_WEIGHTS_CONTENT_TYPE_PREF, 0.80),
+            hostname: getFloatPref(SCORING_WEIGHTS_HOSTNAME_PREF, 0.75),
+            aiSuggestion: getFloatPref(SCORING_WEIGHTS_AI_SUGGESTION_PREF, 0.70),
+            keyword: getFloatPref(SCORING_WEIGHTS_KEYWORD_PREF, 0.60)
         },
 
         // --- Scorer Enable/Disable Settings ---
         scorers: {
             enabled: {
-                existingGroup: true,  // << --- Set to false to disable existing group scoring
-                opener: true,         // << --- Set to false to disable opener relationship scoring
-                contentType: true,    // << --- Set to false to disable content type scoring
-                hostname: true,       // << --- Set to false to disable hostname scoring
-                aiSuggestion: true,   // << --- Set to false to disable AI suggestion scoring
-                keyword: true         // << --- Set to false to disable keyword scoring
+                existingGroup: getPref(SCORERS_EXISTING_GROUP_ENABLED_PREF, true),  // Set to false to disable existing group scoring
+                opener: getPref(SCORERS_OPENER_ENABLED_PREF, true),         // Set to false to disable opener relationship scoring
+                contentType: getPref(SCORERS_CONTENT_TYPE_ENABLED_PREF, true),    // Set to false to disable content type scoring
+                hostname: getPref(SCORERS_HOSTNAME_ENABLED_PREF, true),       // Set to false to disable hostname scoring
+                aiSuggestion: getPref(SCORERS_AI_SUGGESTION_ENABLED_PREF, true),   // Set to false to disable AI suggestion scoring
+                keyword: getPref(SCORERS_KEYWORD_ENABLED_PREF, true)         // Set to false to disable keyword scoring
             }
         },
 
         // --- Dynamic Weight Adaptation ---
         dynamicWeights: {
-            enabled: true,
+            enabled: getPref(DYNAMIC_WEIGHTS_ENABLED_PREF, true),
 
             // Size-based weight profiles
-            // Replace the entire 'sizeProfiles' object with this new one.
             sizeProfiles: {
                 small: { // 1-5 tabs
-                    existingGroup: 0.95, // HIGHEST PRIORITY: Joining a group is most important.
-                    hostname: 0.85,
-                    opener: 0.80,
-                    contentType: 0.75,
-                    aiSuggestion: 0.70,
-                    keyword: 0.60
+                    existingGroup: getFloatPref(SIZE_PROFILES_SMALL_EXISTING_GROUP_PREF, 0.95), // HIGHEST PRIORITY: Joining a group is most important.
+                    hostname: getFloatPref(SIZE_PROFILES_SMALL_HOSTNAME_PREF, 0.85),
+                    opener: getFloatPref(SIZE_PROFILES_SMALL_OPENER_PREF, 0.80),
+                    contentType: getFloatPref(SIZE_PROFILES_SMALL_CONTENT_TYPE_PREF, 0.75),
+                    aiSuggestion: getFloatPref(SIZE_PROFILES_SMALL_AI_SUGGESTION_PREF, 0.70),
+                    keyword: getFloatPref(SIZE_PROFILES_SMALL_KEYWORD_PREF, 0.60)
                 },
                 medium: { // 6-15 tabs
-                    existingGroup: 0.95, // STILL HIGHEST PRIORITY.
-                    opener: 0.85,
-                    hostname: 0.80,
-                    aiSuggestion: 0.75,
-                    contentType: 0.70,
-                    keyword: 0.60
+                    existingGroup: getFloatPref(SIZE_PROFILES_MEDIUM_EXISTING_GROUP_PREF, 0.95), // STILL HIGHEST PRIORITY.
+                    opener: getFloatPref(SIZE_PROFILES_MEDIUM_OPENER_PREF, 0.85),
+                    hostname: getFloatPref(SIZE_PROFILES_MEDIUM_HOSTNAME_PREF, 0.80),
+                    aiSuggestion: getFloatPref(SIZE_PROFILES_MEDIUM_AI_SUGGESTION_PREF, 0.75),
+                    contentType: getFloatPref(SIZE_PROFILES_MEDIUM_CONTENT_TYPE_PREF, 0.70),
+                    keyword: getFloatPref(SIZE_PROFILES_MEDIUM_KEYWORD_PREF, 0.60)
                 },
                 large: { // 16+ tabs
-                    existingGroup: 0.95, // ALWAYS THE HIGHEST PRIORITY.
-                    aiSuggestion: 0.90, // AI is more valuable with lots of tabs for context.
-                    hostname: 0.85,
-                    opener: 0.75,
-                    contentType: 0.70,
-                    keyword: 0.60
+                    existingGroup: getFloatPref(SIZE_PROFILES_LARGE_EXISTING_GROUP_PREF, 0.95), // ALWAYS THE HIGHEST PRIORITY.
+                    aiSuggestion: getFloatPref(SIZE_PROFILES_LARGE_AI_SUGGESTION_PREF, 0.90), // AI is more valuable with lots of tabs for context.
+                    hostname: getFloatPref(SIZE_PROFILES_LARGE_HOSTNAME_PREF, 0.85),
+                    opener: getFloatPref(SIZE_PROFILES_LARGE_OPENER_PREF, 0.75),
+                    contentType: getFloatPref(SIZE_PROFILES_LARGE_CONTENT_TYPE_PREF, 0.70),
+                    keyword: getFloatPref(SIZE_PROFILES_LARGE_KEYWORD_PREF, 0.60)
                 }
             },
 
             // Time-based opener adjustments
             openerTimeTracking: {
-                enabled: true,
-                recentOpenerBoost: 0.20, // Boost for recent opener relationships
-                recentThreshold: 5 * 60 * 1000, // 5 minutes
-                decayHalfLife: 15 * 60 * 1000 // 15 minutes
+                enabled: getPref(DYNAMIC_WEIGHTS_OPENER_TIME_TRACKING_ENABLED_PREF, true),
+                recentOpenerBoost: getFloatPref(DYNAMIC_WEIGHTS_RECENT_OPENER_BOOST_PREF, 0.20), // Boost for recent opener relationships
+                recentThreshold: getPref(DYNAMIC_WEIGHTS_RECENT_THRESHOLD_PREF, 5 * 60 * 1000), // 5 minutes
+                decayHalfLife: getPref(DYNAMIC_WEIGHTS_DECAY_HALF_LIFE_PREF, 15 * 60 * 1000) // 15 minutes
             },
 
         },
 
         thresholds: {
-            minGroupingScore: 0.55,
-            minTabsForNewGroup: 1 // Threshold for the FIRST pass. AI pass will group everything.
+            minGroupingScore: getFloatPref(THRESHOLDS_MIN_GROUPING_SCORE_PREF, 0.55),
+            minTabsForNewGroup: getPref(THRESHOLDS_MIN_TABS_FOR_NEW_GROUP_PREF, 1) // Threshold for the FIRST pass. AI pass will group everything.
         },
 
         // Essential hostname-to-brand mappings
@@ -124,6 +273,11 @@
             'reddit.com': 'Reddit',
             'openai.com': 'OpenAI',
             'chatgpt': 'ChatGPT',
+            'anthropic.com': 'Anthropic',
+            'claude.ai': 'Claude',
+            'mistral.ai': 'Mistral',
+            'deepseek.com': 'DeepSeek',
+            'gemini.google.com': 'Gemini',
             'developer.mozilla.org': 'MDN Web Docs',
             'mdn': 'MDN Web Docs',
             'pinterest.com': 'Pinterest',
@@ -133,19 +287,56 @@
         },
 
         apiConfig: {
+            // AI providers are tried in this order: OpenAI → Anthropic → Mistral → DeepSeek → Gemini
+            // Only enabled providers with valid API keys will be used
+            // Enable multiple providers for automatic failover if one is down
+            
             ollama: {
-                endpoint: 'http://localhost:11434/api/generate',
-                enabled: false,
-                model: 'llama3.1:latest'
+                endpoint: getPref(OLLAMA_ENDPOINT_PREF, 'http://localhost:11434/api/generate'),
+                enabled: getPref(OLLAMA_ENABLED_PREF, false),
+                model: getPref(OLLAMA_MODEL_PREF, 'llama3.1:latest')
+            },
+            openai: {
+                enabled: getPref(OPENAI_ENABLED_PREF, false),
+                apiKey: getPref(OPENAI_API_KEY_PREF, ''), // API KEY FROM PREFERENCES
+                model: getPref(OPENAI_MODEL_PREF, 'gpt-4o-mini'), // Options: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+                apiBaseUrl: getPref(OPENAI_API_BASE_URL_PREF, 'https://api.openai.com/v1/chat/completions'),
+                temperature: getFloatPref(OPENAI_TEMPERATURE_PREF, 0.1),
+                maxTokens: getPref(OPENAI_MAX_TOKENS_PREF, 1000)
+            },
+            anthropic: {
+                enabled: getPref(ANTHROPIC_ENABLED_PREF, false),
+                apiKey: getPref(ANTHROPIC_API_KEY_PREF, ''), // API KEY FROM PREFERENCES
+                model: getPref(ANTHROPIC_MODEL_PREF, 'claude-3-haiku-20240307'), // Options: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022, claude-3-haiku-20240307
+                apiBaseUrl: getPref(ANTHROPIC_API_BASE_URL_PREF, 'https://api.anthropic.com/v1/messages'),
+                version: getPref(ANTHROPIC_VERSION_PREF, '2023-06-01'),
+                temperature: getFloatPref(ANTHROPIC_TEMPERATURE_PREF, 0.1),
+                maxTokens: getPref(ANTHROPIC_MAX_TOKENS_PREF, 1000)
+            },
+            mistral: {
+                enabled: getPref(MISTRAL_ENABLED_PREF, false),
+                apiKey: getPref(MISTRAL_API_KEY_PREF, ''), // API KEY FROM PREFERENCES
+                model: getPref(MISTRAL_MODEL_PREF, 'mistral-small-latest'), // Options: mistral-large-latest, mistral-small-latest, open-mistral-7b
+                apiBaseUrl: getPref(MISTRAL_API_BASE_URL_PREF, 'https://api.mistral.ai/v1/chat/completions'),
+                temperature: getFloatPref(MISTRAL_TEMPERATURE_PREF, 0.1),
+                maxTokens: getPref(MISTRAL_MAX_TOKENS_PREF, 1000)
+            },
+            deepseek: {
+                enabled: getPref(DEEPSEEK_ENABLED_PREF, false),
+                apiKey: getPref(DEEPSEEK_API_KEY_PREF, ''), // API KEY FROM PREFERENCES
+                model: getPref(DEEPSEEK_MODEL_PREF, 'deepseek-chat'), // Options: deepseek-chat, deepseek-coder
+                apiBaseUrl: getPref(DEEPSEEK_API_BASE_URL_PREF, 'https://api.deepseek.com/chat/completions'),
+                temperature: getFloatPref(DEEPSEEK_TEMPERATURE_PREF, 0.1),
+                maxTokens: getPref(DEEPSEEK_MAX_TOKENS_PREF, 1000)
             },
             gemini: {
-                enabled: true,
-                apiKey: '', // <<<--- PASTE YOUR KEY HERE --- >>>
-                model: 'gemini-2.0-flash',
-                apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
+                enabled: getPref(GEMINI_ENABLED_PREF, true),
+                apiKey: getPref(GEMINI_API_KEY_PREF, ''), // API KEY FROM PREFERENCES
+                model: getPref(GEMINI_MODEL_PREF, 'gemini-2.5-flash-lite-preview-06-17'), // Options: gemini-2.5-flash-lite-preview-06-17, gemini-1.5-flash, gemini-1.5-pro
+                apiBaseUrl: getPref(GEMINI_API_BASE_URL_PREF, 'https://generativelanguage.googleapis.com/v1beta/models/'),
                 generationConfig: {
-                    temperature: 0.1,
-                    candidateCount: 1,
+                    temperature: getFloatPref(GEMINI_TEMPERATURE_PREF, 0.1),
+                    candidateCount: getPref(GEMINI_CANDIDATE_COUNT_PREF, 1),
                 }
             },
             prompts: {
@@ -220,8 +411,8 @@
             }
         },
 
-        consolidationDistanceThreshold: 2,
-        minKeywordLength: 3,
+        consolidationDistanceThreshold: getPref(CONSOLIDATION_DISTANCE_THRESHOLD_PREF, 2),
+        minKeywordLength: getPref(MIN_KEYWORD_LENGTH_PREF, 3),
         groupColors: [
             "blue", "red", "yellow", "green", "pink", "purple", "orange", "cyan", "gray"
         ],
@@ -239,7 +430,7 @@
         ]),
 
         semanticAnalysis: {
-            enabled: true,
+            enabled: getPref(SEMANTIC_ANALYSIS_ENABLED_PREF, true),
             contentTypePatterns: [{
                 name: "Spreadsheet",
                 patterns: [/docs\.google\.com\/spreadsheets/, /office\.live\.com\/start\/Excel/, /sheets\.com/]
@@ -1492,28 +1683,87 @@
             let factors = 0;
             let totalScore = 0;
 
-            // Check hostname similarity
+            // Debug logging to understand what's happening
+            if (CONFIG.logging.showDetailedScoring) {
+                Logger.info(`🔍 Calculating similarity for "${tab.data.title}" to group "${groupData.groupName || 'Unknown'}"`);
+                Logger.info(`   Tab hostname: ${tab.data.hostname}, Group hostnames: ${JSON.stringify(groupData.commonHostnames)}`);
+                Logger.info(`   Tab contentType: ${tab.contentType}, Group contentTypes: ${JSON.stringify(groupData.contentTypes)}`);
+                Logger.info(`   Tab keywords: ${JSON.stringify([...tab.keywords])}, Group keywords: ${JSON.stringify(groupData.commonKeywords)}`);
+            }
+
+            // Check hostname similarity - strong signal
             if (tab.data.hostname && groupData.commonHostnames?.includes(tab.data.hostname)) {
                 totalScore += 1.0;
                 factors++;
-            }
-
-            // Check content type similarity
-            if (tab.contentType && groupData.contentTypes?.includes(tab.contentType)) {
-                totalScore += 1.0;
-                factors++;
-            }
-
-            if (tab.keywords && groupData.commonKeywords && groupData.commonKeywords.length > 0) {
-                const overlap = [...tab.keywords].filter(kw => groupData.commonKeywords.includes(kw));
-                if (overlap.length > 0) {
-                    const keywordScore = overlap.length / groupData.commonKeywords.length;
-                    totalScore += Math.min(keywordScore, 1.0);
-                    factors++;
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.info(`   ✅ Hostname match found`);
                 }
             }
 
-            return factors > 0 ? totalScore / factors : 0;
+            // Check content type similarity - strong signal
+            if (tab.contentType && groupData.contentTypes?.includes(tab.contentType)) {
+                totalScore += 1.0;
+                factors++;
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.info(`   ✅ Content type match found`);
+                }
+            }
+
+            // Improved keyword matching - require meaningful overlap
+            if (tab.keywords && groupData.commonKeywords && groupData.commonKeywords.length > 0) {
+                const overlap = [...tab.keywords].filter(kw => groupData.commonKeywords.includes(kw));
+                
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.info(`   Keyword overlap: ${JSON.stringify(overlap)} (${overlap.length} keywords)`);
+                }
+                
+                if (overlap.length > 0) {
+                    // Calculate overlap percentage from both perspectives
+                    const overlapFromTab = overlap.length / tab.keywords.size;
+                    const overlapFromGroup = overlap.length / groupData.commonKeywords.length;
+                    
+                    // Require at least 25% overlap from either perspective for meaningful similarity
+                    // OR if hostname/content type already matches, allow lower threshold
+                    const hasStrongSignal = factors > 0;
+                    const minOverlapThreshold = hasStrongSignal ? 0.15 : 0.25;
+                    
+                    if (CONFIG.logging.showDetailedScoring) {
+                        Logger.info(`   Overlap %: tab=${(overlapFromTab*100).toFixed(1)}%, group=${(overlapFromGroup*100).toFixed(1)}%, threshold=${(minOverlapThreshold*100).toFixed(1)}%, hasStrongSignal=${hasStrongSignal}`);
+                    }
+                    
+                    if (overlapFromTab >= minOverlapThreshold || overlapFromGroup >= minOverlapThreshold) {
+                        // Use the average of both overlap percentages for balanced scoring
+                        const keywordScore = (overlapFromTab + overlapFromGroup) / 2;
+                        totalScore += Math.min(keywordScore, 1.0);
+                        factors++;
+                        if (CONFIG.logging.showDetailedScoring) {
+                            Logger.info(`   ✅ Keyword threshold met, keywordScore=${keywordScore.toFixed(3)}`);
+                        }
+                    } else {
+                        if (CONFIG.logging.showDetailedScoring) {
+                            Logger.info(`   ❌ Keyword threshold NOT met`);
+                        }
+                    }
+                }
+            }
+
+            // Return 0 if no meaningful similarity found
+            if (factors === 0) {
+                if (CONFIG.logging.showDetailedScoring) {
+                    Logger.info(`   ❌ No factors found, returning 0`);
+                }
+                return 0;
+            }
+            
+            // Require at least some meaningful connection
+            const averageScore = totalScore / factors;
+            const finalScore = averageScore >= 0.3 ? averageScore : 0;
+            
+            if (CONFIG.logging.showDetailedScoring) {
+                Logger.info(`   📊 Final similarity: ${factors} factors, totalScore=${totalScore.toFixed(3)}, avgScore=${averageScore.toFixed(3)}, finalScore=${finalScore.toFixed(3)}`);
+            }
+            
+            return finalScore;
         }
     }
 
@@ -1730,6 +1980,7 @@
             const contentTypes = [...new Set(tabsInGroup.map(t => detectContentType(t)).filter(ct => ct))];
 
             existingGroups.set(label, {
+                groupName: label,
                 tabs: tabsInGroup,
                 commonHostnames,
                 commonKeywords,
@@ -2037,15 +2288,190 @@
         }
     };
 
+    // AI API Helper Functions
+    const AIProviders = {
+        async callOpenAI(prompt, config, validTabsCount) {
+            if (!config.apiKey || config.apiKey.length < 20) {
+                throw new Error("OpenAI API key is missing or not set.");
+            }
+
+            const response = await fetch(config.apiBaseUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: config.temperature,
+                    max_tokens: Math.max(config.maxTokens, validTabsCount * 20)
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data?.error?.message || response.statusText;
+                throw new Error(`OpenAI API Error ${response.status}: ${errorMsg}`);
+            }
+
+            const aiText = data?.choices?.[0]?.message?.content?.trim();
+            if (!aiText) {
+                throw new Error("OpenAI API Error: Response content was missing.");
+            }
+
+            return aiText;
+        },
+
+        async callAnthropic(prompt, config, validTabsCount) {
+            if (!config.apiKey || config.apiKey.length < 20) {
+                throw new Error("Anthropic API key is missing or not set.");
+            }
+
+            const response = await fetch(config.apiBaseUrl, {
+                method: 'POST',
+                headers: {
+                    'x-api-key': config.apiKey,
+                    'Content-Type': 'application/json',
+                    'anthropic-version': config.version
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    max_tokens: Math.max(config.maxTokens, validTabsCount * 20),
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: config.temperature
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data?.error?.message || response.statusText;
+                throw new Error(`Anthropic API Error ${response.status}: ${errorMsg}`);
+            }
+
+            const aiText = data?.content?.[0]?.text?.trim();
+            if (!aiText) {
+                throw new Error("Anthropic API Error: Response content was missing.");
+            }
+
+            return aiText;
+        },
+
+        async callMistral(prompt, config, validTabsCount) {
+            if (!config.apiKey || config.apiKey.length < 20) {
+                throw new Error("Mistral API key is missing or not set.");
+            }
+
+            const response = await fetch(config.apiBaseUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: config.temperature,
+                    max_tokens: Math.max(config.maxTokens, validTabsCount * 20)
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data?.error?.message || response.statusText;
+                throw new Error(`Mistral API Error ${response.status}: ${errorMsg}`);
+            }
+
+            const aiText = data?.choices?.[0]?.message?.content?.trim();
+            if (!aiText) {
+                throw new Error("Mistral API Error: Response content was missing.");
+            }
+
+            return aiText;
+        },
+
+        async callDeepSeek(prompt, config, validTabsCount) {
+            if (!config.apiKey || config.apiKey.length < 20) {
+                throw new Error("DeepSeek API key is missing or not set.");
+            }
+
+            const response = await fetch(config.apiBaseUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: config.temperature,
+                    max_tokens: Math.max(config.maxTokens, validTabsCount * 20)
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data?.error?.message || response.statusText;
+                throw new Error(`DeepSeek API Error ${response.status}: ${errorMsg}`);
+            }
+
+            const aiText = data?.choices?.[0]?.message?.content?.trim();
+            if (!aiText) {
+                throw new Error("DeepSeek API Error: Response content was missing.");
+            }
+
+            return aiText;
+        },
+
+        async callGemini(prompt, config, validTabsCount) {
+            if (!config.apiKey || config.apiKey.length < 30) {
+                throw new Error("Gemini API key is missing or not set.");
+            }
+
+            const apiUrl = `${config.apiBaseUrl}${config.model}:generateContent?key=${config.apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { ...config.generationConfig, maxOutputTokens: Math.max(256, validTabsCount * 20) }
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data?.error?.message || response.statusText;
+                throw new Error(`Gemini API Error ${response.status}: ${errorMsg}`);
+            }
+
+            const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (!aiText) {
+                const finishReason = data?.candidates?.[0]?.finishReason;
+                const safetyRatings = data?.promptFeedback?.safetyRatings;
+                let reason = "Response content was missing.";
+                if (finishReason === 'SAFETY') {
+                    reason = `Request blocked by API safety filters. Ratings: ${JSON.stringify(safetyRatings)}`;
+                } else if (finishReason) {
+                    reason = `Generation finished unexpectedly. Reason: ${finishReason}`;
+                }
+                Logger.error("Gemini API Error:", reason, data);
+                throw new Error(`Gemini API Error: ${reason}`);
+            }
+
+            return aiText;
+        }
+    };
+
     const askAIForMultipleTopics = async (tabsWithData, existingCategoryNames = []) => {
         const validTabsWithData = tabsWithData.filter(item => item.tab && item.tab.isConnected && item.data);
         if (!validTabsWithData || validTabsWithData.length === 0) return new Map();
-        const { gemini } = CONFIG.apiConfig;
+        
+        const apis = CONFIG.apiConfig;
         let apiChoice = "None";
         validTabsWithData.forEach(item => item.tab.classList.add('tab-is-sorting'));
 
         try {
-            const promptTemplateToUse = CONFIG.aiOnlyGrouping ? CONFIG.apiConfig.prompts.aiOnly : CONFIG.apiConfig.prompts.standard;
+            const promptTemplateToUse = CONFIG.aiOnlyGrouping ? apis.prompts.aiOnly : apis.prompts.standard;
             if (!promptTemplateToUse) throw new Error("Appropriate AI prompt template not found.");
 
             const formattedTabDataList = validTabsWithData.map((item, index) =>
@@ -2056,43 +2482,37 @@
                 .replace("{EXISTING_CATEGORIES_LIST}", formattedExistingCategories)
                 .replace("{TAB_DATA_LIST}", formattedTabDataList);
 
-            if (gemini.enabled) {
-                apiChoice = "Gemini";
-                if (!gemini.apiKey || gemini.apiKey.length < 30) throw new Error("Gemini API key is missing or not set.");
+            // Try APIs in order of preference: OpenAI, Anthropic, Mistral, DeepSeek, Gemini
+            const apiProviders = [
+                { name: 'OpenAI', config: apis.openai, method: AIProviders.callOpenAI },
+                { name: 'Anthropic', config: apis.anthropic, method: AIProviders.callAnthropic },
+                { name: 'Mistral', config: apis.mistral, method: AIProviders.callMistral },
+                { name: 'DeepSeek', config: apis.deepseek, method: AIProviders.callDeepSeek },
+                { name: 'Gemini', config: apis.gemini, method: AIProviders.callGemini }
+            ];
 
-                const apiUrl = `${gemini.apiBaseUrl}${gemini.model}:generateContent?key=${gemini.apiKey}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { ...gemini.generationConfig, maxOutputTokens: Math.max(256, validTabsWithData.length * 20) }
-                    })
-                });
+            let lastError = null;
+            for (const provider of apiProviders) {
+                if (!provider.config.enabled) continue;
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    const errorMsg = data?.error?.message || response.statusText;
-                    throw new Error(`Gemini API Error ${response.status}: ${errorMsg}`);
+                try {
+                    apiChoice = provider.name;
+                    Logger.info(`🤖 Trying ${provider.name} API...`);
+                    
+                    const aiText = await provider.method(prompt, provider.config, validTabsWithData.length);
+                    Logger.info(`✅ ${provider.name} API succeeded`);
+                    
+                    return processAIResponse(aiText, validTabsWithData, provider.name);
+                } catch (error) {
+                    Logger.warn(`⚠️ ${provider.name} API failed:`, error.message);
+                    lastError = error;
+                    continue;
                 }
-                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                if (!aiText) {
-                    const finishReason = data?.candidates?.[0]?.finishReason;
-                    const safetyRatings = data?.promptFeedback?.safetyRatings;
-                    let reason = "Response content was missing.";
-                    if (finishReason === 'SAFETY') {
-                        reason = `Request blocked by API safety filters. Ratings: ${JSON.stringify(safetyRatings)}`;
-                    } else if (finishReason) {
-                        reason = `Generation finished unexpectedly. Reason: ${finishReason}`;
-                    }
-                    Logger.error("Gemini API Error:", reason, data);
-                    throw new Error(`Gemini API Error: ${reason}`);
-                }
-                return processAIResponse(aiText, validTabsWithData, "Gemini");
-            } else {
-                throw new Error("No AI API is enabled in the configuration.");
             }
+
+            // If all APIs failed
+            throw new Error(`All enabled AI APIs failed. Last error: ${lastError?.message || 'Unknown error'}`);
+
         } catch (error) {
             Logger.error(`AI (${apiChoice}): Error getting topics:`, error);
             const fallbackResults = new Map();
@@ -2137,6 +2557,7 @@
             Logger.info(`📋 Mode: ${isAutoSortForNewTab ? 'Auto-sort for new tab' : isSortingSelectedTabs ? 'Multi-select sort' : 'Sort all ungrouped'}`);
             Logger.info(`🏢 Workspace: ${currentWorkspaceId}`);
             Logger.info(`🔧 AI-only grouping: ${CONFIG.aiOnlyGrouping}`);
+            Logger.info(`🤖 AI providers enabled: ${Object.entries(CONFIG.apiConfig).filter(([name, config]) => config.enabled && name !== 'prompts').map(([name]) => name).join(', ') || 'None'}`);
             Logger.info(`📊 Detailed scoring: ${CONFIG.logging.showDetailedScoring}`);
             Logger.info(`⚖️ Weight changes: ${CONFIG.logging.showWeightChanges}`);
             Logger.info(`🎯 Grouping results: ${CONFIG.logging.showGroupingResults}`);

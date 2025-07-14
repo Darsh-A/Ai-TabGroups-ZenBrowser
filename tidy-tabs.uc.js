@@ -1,4 +1,4 @@
-// VERSION 6.4.0 - Multi-AI Provider Support (OpenAI, Anthropic, Mistral, DeepSeek, Gemini)
+// VERSION 6.4.1
 (() => {
     // --- Configuration ---
 

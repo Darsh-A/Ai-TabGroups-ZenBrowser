@@ -5,7 +5,7 @@
     "homepage": "https://github.com/Darsh-A/Ai-TabGroups-ZenBrowser/tree/dev",
     "preferences": "https://raw.githubusercontent.com/Darsh-A/Ai-TabGroups-ZenBrowser/refs/heads/dev/preferences.json",
     "image": "https://github.com/Darsh-A/Ai-TabGroups-ZenBrowser/blob/main/image.jpg?raw=true",
-    "js": true,
+    "js": "https://raw.githubusercontent.com/Darsh-A/Ai-TabGroups-ZenBrowser/refs/heads/dev/tidy-tabs.uc.js",
     "readme": "https://raw.githubusercontent.com/Darsh-A/Ai-TabGroups-ZenBrowser/refs/heads/dev/README.md",
     "author": "Darsh A",
     "version": "6.5.1",

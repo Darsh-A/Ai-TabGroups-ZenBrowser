@@ -10,7 +10,7 @@ Advanced AI-powered tab management with intelligent grouping, auto-sorting, and 
 
 ## 📦 Installation
 
-### 1. Through Sine (R)
+### 1. Through Sine (Recommended)
 Sine is a community-driven mod/theme manager for all Firefox-based browsers.
 Install it [here](https://github.com/CosmoCreeper/Sine)
 
@@ -19,7 +19,7 @@ The mod will be available in its marketplace as `Tidy-Tabs`.
 ### 2. Manual Installation
 1. Setup [Fx-Autoconfig](https://github.com/MrOtherGuy/fx-autoconfig) (Sine installs this automatically)
 2. Download the latest scripts and preferences from the repo.
-3. Place it in the chrome directory of your profile. To open the directory, type `about:profiles` in the address bar, click on your profile, and then click "Open Directory".
+3. Place it in the chrome/JS directory of your profile. To open the directory, type `about:profiles` in the address bar, click on your profile, and then click "Open Directory".
 4. Go to `about:support` and Clear the startup cache.
 
 ## ⚙️ Setup 

@@ -1,4 +1,4 @@
-// VERSION 6.4.1
+// VERSION 6.5.1
 (() => {
     // --- Configuration ---
 
@@ -470,164 +470,172 @@
         },
         getStyles() {
             return `
-        #sort-button {
-            opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
-            transition: opacity 0.1s ease-in-out;
-            position: absolute;
-            right: 57px; /* Reduced by 5px */
-            font-size: 12px;
-            width: 60px;
-            pointer-events: auto;
-            align-self: end;
-            appearance: none;
-            margin-top: -8px;
-            padding: 1px;
-            color: ${CONFIG.buttons.autoHide ? 'gray' : 'white'};
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #sort-button label { display: block; margin-left: 2px; font-size: 13px; }
-        #sort-button:hover {
-            opacity: 1;
-            color: white;
-            border-radius: 4px;
-        }
+                /* --- BUTTON STYLES --- */
+                #sort-button {
+                    /* If auto-hide is on, button is invisible by default */
+                    opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
+                    transition: opacity 0.1s ease-in-out;
+                    position: absolute;
+                    right: 57px;
+                    font-size: 12px;
+                    width: 60px;
+                    pointer-events: auto;
+                    align-self: end;
+                    appearance: none;
+                    margin-top: -8px;
+                    padding: 1px;
+                    color: gray;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1; /* FIXED: Ensure button is on top of the visual bar */
+                }
+                #sort-button label { display: block; margin-left: 2px; font-size: 13px; }
+                #sort-button:hover {
+                    opacity: 1;
+                    color: white;
+                    border-radius: 4px;
+                }
+                
+                /* Broom animation is unchanged */
+                @keyframes brush-sweep {
+                    0% { transform: rotate(0deg); } 20% { transform: rotate(-15deg); }
+                    40% { transform: rotate(15deg); } 60% { transform: rotate(-15deg); }
+                    80% { transform: rotate(15deg); } 100% { transform: rotate(0deg); }
+                }
+                #sort-button.brushing .broom-icon {
+                    animation: brush-sweep 0.8s ease-in-out;
+                    transform-origin: 50% 50%;
+                }
+          
+                #clear-button {
+                    opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
+                    transition: opacity 0.1s ease-in-out;
+                    position: absolute;
+                    right: 0;
+                    font-size: 12px;
+                    width: 60px;
+                    pointer-events: auto;
+                    align-self: end;
+                    appearance: none;
+                    margin-top: -8px;
+                    padding: 1px;
+                    color: gray;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1; /* FIXED: Ensure button is on top of the visual bar */
+                }
+                #clear-button label { display: block; margin-left: 2px; font-size: 13px; }
+                #clear-button .down-arrow-icon { margin-right: 2px; }
+                #clear-button:hover {
+                    opacity: 1;
+                    color: white;
+                    border-radius: 4px;
+                }
         
-        /* Broom brushing animation */
-        @keyframes brush-sweep {
-            0% { transform: rotate(0deg); }
-            20% { transform: rotate(-15deg); }
-            40% { transform: rotate(15deg); }
-            60% { transform: rotate(-15deg); }
-            80% { transform: rotate(15deg); }  
-            100% { transform: rotate(0deg); }
-        }
+                /* --- THE CORE FIX: INVISIBLE WRAPPER METHOD --- */
         
-        #sort-button.brushing .broom-icon {
-            animation: brush-sweep 0.8s ease-in-out;
-            transform-origin: 50% 50%; /* Center of broom */
-        }
-  
-        #clear-button {
-            opacity: ${CONFIG.buttons.autoHide ? '0' : '1'};
-            transition: opacity 0.1s ease-in-out;
-            position: absolute;
-            right: 0;
-            font-size: 12px;
-            width: 60px;
-            pointer-events: auto;
-            align-self: end;
-            appearance: none;
-            margin-top: -8px;
-            padding: 1px;
-            color: ${CONFIG.buttons.autoHide ? 'grey' : 'white'};
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #clear-button label { display: block; margin-left: 2px; font-size: 13px; }
-        #clear-button .down-arrow-icon { margin-right: 2px; }
-        #clear-button:hover {
-            opacity: 1;
-            color: white;
-            border-radius: 4px;
-        }
-        .vertical-pinned-tabs-container-separator {
-             display: flex !important;
-             flex-direction: column;
-             margin-left: 0;
-             min-height: 1px;
-             background-color: var(--lwt-toolbarbutton-border-color, rgba(200, 200, 200, 0.1));
-             transition: width 0.1s ease-in-out, margin-right 0.1s ease-in-out, background-color 0.3s ease-out;
-             ${CONFIG.buttons.autoHide ? '' : `
-             width: calc(100% - 117px);
-             margin-right: auto;
-             `}
-        }
-        .vertical-pinned-tabs-container-separator:has(#sort-button):has(#clear-button):hover {
-            width: calc(100% - 117px);
-            margin-right: auto;
-            background-color: var(--lwt-toolbarbutton-hover-background, rgba(200, 200, 200, 0.2));
-        }
-        ${CONFIG.buttons.autoHide ? `
-        .vertical-pinned-tabs-container-separator:hover #sort-button,
-        .vertical-pinned-tabs-container-separator:hover #clear-button {
-            opacity: 1;
-        }
-        ` : ''}
-        @keyframes pulse-separator-bg {
-            0% { background-color: var(--lwt-toolbarbutton-border-color, rgb(255, 141, 141)); }
-            50% { background-color: var(--lwt-toolbarbutton-hover-background, rgba(137, 178, 255, 0.91)); }
-            100% { background-color: var(--lwt-toolbarbutton-border-color, rgb(142, 253, 238)); }
-        }
-        .separator-is-sorting {
-            animation: pulse-separator-bg 1.5s ease-in-out infinite;
-            will-change: background-color;
-        }
+                /* This is the STABLE, INVISIBLE hover container. Its size never changes. */
+                .vertical-pinned-tabs-container-separator {
+                     display: flex !important;
+                     flex-direction: column;
+                     margin-left: 0;
+                     min-height: 1px;
+                     padding-top: 0.4px;
+                     padding-bottom: 0.4px;
+                     position: relative; /* Acts as the positioning anchor */
+                     background-color: transparent !important; /* The container itself is invisible */
+                }
         
-        /* Auto-sort dot indicator */
-        @keyframes auto-sort-dot-pulse {
-            0%, 100% { 
-                opacity: 0.6; 
-                transform: scale(1);
-            }
-            50% { 
-                opacity: 1; 
-                transform: scale(1.2);
-            }
-        }
+                /* This is the VISIBLE, ANIMATING bar. */
+                .vertical-pinned-tabs-container-separator::before {
+                    content: '';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    height: 100%;
+                    /* Default to full width if autoHide is on, otherwise it's shrunken */
+                    width: ${CONFIG.buttons.autoHide ? '100%' : 'calc(100% - 117px)'};
+                    /* Default to subtle color if autoHide is on, otherwise it's the 'hover' color */
+                    background-color: ${CONFIG.buttons.autoHide
+                        ? 'var(--lwt-toolbarbutton-border-color, rgba(200, 200, 200, 0.1))'
+                        : 'var(--lwt-toolbarbutton-hover-background, rgba(200, 200, 200, 0.2))'
+                    };
+                    transition: width 0.1s ease-in-out, background-color 0.3s ease-out;
+                }
         
-        .separator-auto-sorting {
-            width: 100% !important;
-            margin-right: auto !important;
-            position: relative;
-            background: linear-gradient(to right, transparent 0 20px, var(--lwt-toolbarbutton-border-color, rgba(200,200,200,0.1)) 20px 100%);
-        }
+                /* --- HOVER AND CONDITIONAL LOGIC --- */
         
-        .separator-auto-sorting::before {
-            content: '';
-            position: absolute;
-            left: 5px;
-            top: -4px;
-            width: 8px;
-            height: 8px;
-            background-color:rgba(128, 128, 128, 0.54);
-            border-radius: 50%;
-            animation: auto-sort-dot-pulse 1.5s ease-in-out infinite;
-            will-change: opacity, transform;
-            z-index: 1;
-        }
-        .tab-closing {
-            animation: fadeUp 0.5s forwards;
-        }
-        @keyframes fadeUp {
-            0% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 0; transform: translateY(-20px); max-height: 0px; padding: 0; margin: 0; border: 0; }
-        }
-        @keyframes loading-pulse-tab {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
-        }
-        .tab-is-sorting .tab-icon-image,
-        .tab-is-sorting .tab-label {
-            animation: loading-pulse-tab 1.5s ease-in-out infinite;
-            will-change: opacity;
-        }
+                /* This block handles the auto-hiding behavior */
+                ${CONFIG.buttons.autoHide ? `
+                    /* When hovering the STABLE container... */
+                    .vertical-pinned-tabs-container-separator:hover #sort-button,
+                    .vertical-pinned-tabs-container-separator:hover #clear-button {
+                        /* ...fade in the buttons. */
+                        opacity: 1;
+                    }
         
-        @keyframes auto-sort-pulse {
-            0%, 100% { background-color: rgba(33, 150, 243, 0.1); }
-            50% { background-color: rgba(33, 150, 243, 0.3); }
-        }
-        .tab-auto-sorting {
-            /* animation: auto-sort-pulse 2s ease-in-out infinite; */
-            animation: none;
-            will-change: background-color;
-        }
-        .tabbrowser-tab {
-            transition: transform 0.3s ease-out, opacity 0.3s ease-out, max-height 0.5s ease-out, margin 0.5s ease-out, padding 0.5s ease-out;
-        }
-        `;
+                    /* ...and shrink the VISIBLE bar inside it. */
+                    .vertical-pinned-tabs-container-separator:has(#sort-button):has(#clear-button):hover::before {
+                        width: calc(100% - 117px);
+                        background-color: var(--lwt-toolbarbutton-hover-background, rgba(200, 200, 200, 0.2));
+                    }
+                ` : `
+                    /* This block handles the always-visible button behavior */
+                    /* The bar is already shrunken by default. On hover, just make it slightly darker. */
+                    .vertical-pinned-tabs-container-separator:has(#sort-button):has(#clear-button):hover::before {
+                         background-color: var(--lwt-toolbarbutton-hover-background, rgba(200, 200, 200, 0.3));
+                    }
+                `}
+                
+                /* --- ANIMATIONS (Unchanged) --- */
+        
+                @keyframes pulse-separator-bg {
+                    0% { background-color: var(--lwt-toolbarbutton-border-color, rgb(255, 141, 141)); }
+                    50% { background-color: var(--lwt-toolbarbutton-hover-background, rgba(137, 178, 255, 0.91)); }
+                    100% { background-color: var(--lwt-toolbarbutton-border-color, rgb(142, 253, 238)); }
+                }
+                /* Make the pulsing animation target the visible bar, not the container */
+                .separator-is-sorting::before {
+                    animation: pulse-separator-bg 1.5s ease-in-out infinite;
+                    will-change: background-color;
+                }
+                
+                @keyframes auto-sort-dot-pulse {
+                    0%, 100% { opacity: 0.6; transform: scale(1); }
+                    50% { opacity: 1; transform: scale(1.2); }
+                }
+                .separator-auto-sorting {
+                    width: 100% !important;
+                    margin-right: auto !important;
+                    position: relative;
+                    background: linear-gradient(to right, transparent 0 20px, var(--lwt-toolbarbutton-border-color, rgba(200,200,200,0.1)) 20px 100%);
+                }
+                .separator-auto-sorting::before {
+                    content: ''; position: absolute; left: 5px; top: -4px;
+                    width: 8px; height: 8px; background-color:rgba(128, 128, 128, 0.54);
+                    border-radius: 50%; animation: auto-sort-dot-pulse 1.5s ease-in-out infinite;
+                    will-change: opacity, transform; z-index: 1;
+                }
+                .tab-closing { animation: fadeUp 0.5s forwards; }
+                @keyframes fadeUp {
+                    0% { opacity: 1; transform: translateY(0); }
+                    100% { opacity: 0; transform: translateY(-20px); max-height: 0px; padding: 0; margin: 0; border: 0; }
+                }
+                @keyframes loading-pulse-tab {
+                    0%, 100% { opacity: 0.6; } 50% { opacity: 1; }
+                }
+                .tab-is-sorting .tab-icon-image,
+                .tab-is-sorting .tab-label {
+                    animation: loading-pulse-tab 1.5s ease-in-out infinite;
+                    will-change: opacity;
+                }
+                .tab-auto-sorting { animation: none; will-change: background-color; }
+                .tabbrowser-tab {
+                    transition: transform 0.3s ease-out, opacity 0.3s ease-out, max-height 0.5s ease-out, margin 0.5s ease-out, padding 0.5s ease-out;
+                }
+            `;
         }
     };
 

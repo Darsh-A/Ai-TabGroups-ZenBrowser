@@ -8,7 +8,7 @@
     "js": true,
     "readme": "https://raw.githubusercontent.com/Darsh-A/Ai-TabGroups-ZenBrowser/refs/heads/dev/README.md",
     "author": "Darsh A",
-    "version": "2.1.1",
+    "version": "6.5.1",
     "tags": [
         "sine",
         "Tab Sort Clear",
@@ -20,6 +20,6 @@
     ],
     "modules": "Anoms12/advanced-tab-groups", 
     "createdAt": "2025-05-26",
-    "updatedAt": "2025-07-14",
+    "updatedAt": "2025-07-15",
     "fork": ["zen"]
 }

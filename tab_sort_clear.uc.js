@@ -1,4 +1,4 @@
-// VERSION 4.11.0 (Added Mistral API support)
+// VERSION 4.12.0 (Added OpenAI-Compatible API support)
 (() => {
     // --- Configuration ---
 
@@ -6,7 +6,7 @@
     const ENABLE_SORT_PREF = "extensions.tabgroups.enable_sort";
     const ENABLE_CLEAR_PREF = "extensions.tabgroups.enable_clear";
     // Preference Key for AI Model Selection
-    const AI_MODEL_PREF = "extensions.tabgroups.ai_model"; // '1' for Gemini, '2' for Ollama, '3' for Mistral
+    const AI_MODEL_PREF = "extensions.tabgroups.ai_model"; // '1' for Gemini, '2' for Ollama, '3' for Mistral, '4' for OpenAI-Compatible
     // Preference Keys for AI Config
     const OLLAMA_ENDPOINT_PREF = "extensions.tabgroups.ollama_endpoint";
     const OLLAMA_MODEL_PREF = "extensions.tabgroups.ollama_model";
@@ -14,6 +14,9 @@
     const GEMINI_MODEL_PREF = "extensions.tabgroups.gemini_model";
     const MISTRAL_API_KEY_PREF = "extensions.tabgroups.mistral_api_key";
     const MISTRAL_MODEL_PREF = "extensions.tabgroups.mistral_model";
+    const OPENAI_ENDPOINT_PREF = "extensions.tabgroups.openai_endpoint";
+    const OPENAI_API_KEY_PREF = "extensions.tabgroups.openai_api_key";
+    const OPENAI_MODEL_PREF = "extensions.tabgroups.openai_model";
 
     // Helper function to read preferences with fallbacks
     const getPref = (prefName, defaultValue = "") => {
@@ -45,6 +48,9 @@
     const GEMINI_MODEL_VALUE = getPref(GEMINI_MODEL_PREF, "gemini-2.0-flash");
     const MISTRAL_API_KEY_VALUE = getPref(MISTRAL_API_KEY_PREF, "");
     const MISTRAL_MODEL_VALUE = getPref(MISTRAL_MODEL_PREF, "mistral-large-latest");
+    const OPENAI_ENDPOINT_VALUE = getPref(OPENAI_ENDPOINT_PREF, "https://api.openai.com/v1/chat/completions");
+    const OPENAI_API_KEY_VALUE = getPref(OPENAI_API_KEY_PREF, "");
+    const OPENAI_MODEL_VALUE = getPref(OPENAI_MODEL_PREF, "gpt-4o-mini");
 
     const CONFIG = {
         featureConfig: {
@@ -131,6 +137,47 @@
                 apiKey: MISTRAL_API_KEY_VALUE,
                 model: MISTRAL_MODEL_VALUE,
                 apiBaseUrl: 'https://api.mistral.ai/v1/chat/completions',
+                promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description) and assign a concise category (1-2 words, Title Case) for EACH tab.
+
+                Existing Categories (Use these EXACT names if a tab fits):
+                {EXISTING_CATEGORIES_LIST}
+
+                ---
+                Instructions for Assignment:
+                1.  **Prioritize Existing:** For each tab below, determine if it clearly belongs to one of the 'Existing Categories'. Base this primarily on the URL/Domain, then Title/Description. If it fits, you MUST use the EXACT category name provided in the 'Existing Categories' list. DO NOT create a minor variation (e.g., if 'Project Docs' exists, use that, don't create 'Project Documentation').
+                2.  **Assign New Category (If Necessary):** Only if a tab DOES NOT fit an existing category, assign the best NEW concise category (1-2 words, Title Case).
+                    *   PRIORITIZE the URL/Domain (e.g., 'GitHub', 'YouTube', 'StackOverflow').
+                    *   Use Title/Description for specifics or generic domains.
+                3.  **Consistency is CRITICAL:** Use the EXACT SAME category name for all tabs belonging to the same logical group (whether assigned an existing or a new category). If multiple tabs point to 'google.com/search?q=recipes', categorize them consistently (e.g., 'Google Search' or 'Recipes', but use the same one for all).
+                4.  **Format:** 1-2 words, Title Case.
+
+                ---
+                Input Tab Data:
+                {TAB_DATA_LIST}
+
+                ---
+                Instructions for Output:
+                1. Output ONLY the category names.
+                2. Provide EXACTLY ONE category name per line.
+                3. The number of lines in your output MUST EXACTLY MATCH the number of tabs in the Input Tab Data list above.
+                4. DO NOT include numbering, explanations, apologies, markdown formatting, or any surrounding text like "Output:" or backticks.
+                5. Just the list of categories, separated by newlines.
+                ---
+
+                Output:`,
+                generationConfig: {
+                    temperature: 0.1, // Low temp for consistency
+                    max_tokens: 512, // Default, will be calculated dynamically
+                    top_p: 0.9,
+                    frequency_penalty: 0.0,
+                    presence_penalty: 0.0
+                }
+            },
+            openai: {
+                enabled: AI_MODEL_VALUE == "4",
+                endpoint: OPENAI_ENDPOINT_VALUE,
+                apiKey: OPENAI_API_KEY_VALUE,
+                model: OPENAI_MODEL_VALUE,
                 promptTemplateBatch: `Analyze the following numbered list of tab data (Title, URL, Description) and assign a concise category (1-2 words, Title Case) for EACH tab.
 
                 Existing Categories (Use these EXACT names if a tab fits):
@@ -678,7 +725,7 @@
             return [];
         }
 
-        const { gemini, ollama, mistral } = CONFIG.apiConfig;
+        const { gemini, ollama, mistral, openai } = CONFIG.apiConfig;
         let result = [];
         let apiChoice = "None";
 
@@ -928,8 +975,84 @@
                     console.log("Batch AI (Mistral): Processed Topics:", processedTopics);
                     result = validTabs.map((tab, index) => ({ tab: tab, topic: processedTopics[index] }));
                 }
+            } else if (openai.enabled) {
+                // --- OPENAI-COMPATIBLE LOGIC ---
+                apiChoice = "OpenAI-Compatible";
+                console.log(`Batch AI (OpenAI-Compatible): Requesting categories for ${validTabs.length} tabs, considering ${existingCategoryNames.length} existing categories...`);
+                let apiUrl = openai.endpoint;
+                let headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${openai.apiKey}`
+                };
+
+                const tabDataArray = validTabs.map(getTabData);
+                const formattedTabDataList = tabDataArray.map((data, index) =>
+                    `${index + 1}.\nTitle: "${data.title}"\nURL: "${data.url}"\nDescription: "${data.description}"`
+                ).join('\n\n');
+                const formattedExistingCategories = existingCategoryNames.length > 0
+                    ? existingCategoryNames.map(name => `- ${name}`).join('\n')
+                    : "None";
+
+                const prompt = openai.promptTemplateBatch
+                    .replace("{EXISTING_CATEGORIES_LIST}", formattedExistingCategories)
+                    .replace("{TAB_DATA_LIST}", formattedTabDataList);
+
+                const estimatedOutputTokens = Math.max(256, validTabs.length * 16); // Dynamic estimation
+                const requestBody = {
+                    model: openai.model,
+                    messages: [{ role: "user", content: prompt }],
+                    max_tokens: estimatedOutputTokens,
+                    temperature: openai.generationConfig.temperature,
+                    top_p: openai.generationConfig.top_p,
+                    frequency_penalty: openai.generationConfig.frequency_penalty,
+                    presence_penalty: openai.generationConfig.presence_penalty
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => 'Unknown API error reason');
+                    throw new Error(`OpenAI-Compatible API Error ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                let aiText = data.choices?.[0]?.message?.content?.trim();
+
+                if (!aiText) {
+                    throw new Error("OpenAI-Compatible: Empty API response");
+                }
+
+                const lines = aiText.split('\n').map(line => line.trim()).filter(Boolean);
+
+                if (lines.length !== validTabs.length) {
+                    console.warn(`Batch AI (OpenAI-Compatible): Mismatch! Expected ${validTabs.length} topics, received ${lines.length}. AI Response:\n${aiText}`);
+                    if (validTabs.length === 1 && lines.length > 0) {
+                        const firstLineTopic = processTopic(lines[0]);
+                        console.warn(` -> Mismatch Correction (Single Tab): Using first line "${lines[0]}" -> Topic: "${firstLineTopic}"`);
+                        result = [{ tab: validTabs[0], topic: firstLineTopic }];
+                    } else if (lines.length > validTabs.length) {
+                        console.warn(` -> Mismatch Correction (Too Many Lines): Truncating response to ${validTabs.length} lines.`);
+                        const processedTopics = lines.slice(0, validTabs.length).map(processTopic);
+                        result = validTabs.map((tab, index) => ({ tab: tab, topic: processedTopics[index] }));
+                    } else {
+                        console.warn(` -> Fallback (Too Few Lines): Assigning remaining tabs "Uncategorized".`);
+                        const processedTopics = lines.map(processTopic);
+                        result = validTabs.map((tab, index) => ({
+                            tab: tab,
+                            topic: index < processedTopics.length ? processedTopics[index] : "Uncategorized"
+                        }));
+                    }
+                } else {
+                    const processedTopics = lines.map(processTopic);
+                    console.log("Batch AI (OpenAI-Compatible): Processed Topics:", processedTopics);
+                    result = validTabs.map((tab, index) => ({ tab: tab, topic: processedTopics[index] }));
+                }
             } else {
-                throw new Error("No AI API is enabled in the configuration (Gemini, Ollama, or Mistral).");
+                throw new Error("No AI API is enabled in the configuration (Gemini, Ollama, Mistral, or OpenAI-Compatible).");
             }
             return result;
         } catch (error) {

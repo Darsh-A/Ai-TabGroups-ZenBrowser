@@ -1,4 +1,4 @@
-// VERSION 4.11.0 (Added Mistral API support)
+// VERSION 4.12.1 (Added Sort Tabs to tab context menu)
 (() => {
     // --- Configuration ---
 
@@ -1496,6 +1496,85 @@
 
     // --- Button Initialization & Workspace Handling ---
 
+    function addContextMenuItem() {
+        const tabContextMenu = document.getElementById('tabContextMenu');
+        if (!tabContextMenu) {
+            console.error("BUTTONS: Could not find 'tabContextMenu'. Context menu item not added.");
+            return;
+        }
+
+        // Check if our menu item already exists
+        if (tabContextMenu.querySelector('#context_zenSortTabs')) {
+            console.log("BUTTONS: Context menu item already exists.");
+            return;
+        }
+
+        try {
+            const menuFragment = window.MozXULElement.parseXULToFragment(
+                `<menuseparator id="context_zen-sort-tabs-separator"/>
+                <menuitem id="context_zenSortTabs" 
+                         label="Sort Tabs" 
+                         tooltiptext="Sort tabs in current workspace into groups by topic (AI)"
+                         command="cmd_zenSortTabs"/>`
+            );
+
+            // Insert before the "Reload Tab" menu item for logical grouping
+            const reloadTabItem = tabContextMenu.querySelector('#context_reloadTab');
+            if (reloadTabItem) {
+                reloadTabItem.before(menuFragment);
+            } else {
+                // Fallback: append to the end
+                tabContextMenu.appendChild(menuFragment);
+            }
+            
+            console.log("BUTTONS: Sort Tabs context menu item added successfully.");
+        } catch (e) {
+            console.error("BUTTONS: Error adding context menu item:", e);
+        }
+    }
+
+    function setupContextMenuListener() {
+        const tabContextMenu = document.getElementById('tabContextMenu');
+        if (!tabContextMenu) {
+            console.error("BUTTONS: Could not find 'tabContextMenu' for listener setup.");
+            return;
+        }
+
+        // Add popupshowing listener to control visibility
+        tabContextMenu.addEventListener('popupshowing', (event) => {
+            try {
+                const menuItem = document.getElementById('context_zenSortTabs');
+                const separator = document.getElementById('context_zen-sort-tabs-separator');
+                
+                if (!menuItem || !separator) return;
+
+                // Check if sort feature is enabled
+                if (!CONFIG.featureConfig.sort) {
+                    menuItem.setAttribute('hidden', 'true');
+                    separator.setAttribute('hidden', 'true');
+                    return;
+                }
+
+                // Check if we're in the correct workspace
+                const currentWorkspaceId = window.gZenWorkspaces?.activeWorkspace;
+                const showMenuItem = currentWorkspaceId && 
+                                    (!gBrowser?.selectedTabs || gBrowser.selectedTabs.length <= 1); // Hide when multiple tabs selected (use button instead)
+                
+                if (showMenuItem) {
+                    menuItem.removeAttribute('hidden');
+                    separator.removeAttribute('hidden');
+                } else {
+                    menuItem.setAttribute('hidden', 'true');
+                    separator.setAttribute('hidden', 'true');
+                }
+            } catch (e) {
+                console.error("BUTTONS: Error in context menu popupshowing listener:", e);
+            }
+        });
+        
+        console.log("BUTTONS: Context menu listener setup complete.");
+    }
+
     function ensureButtonsExist(container) {
         if (!container) return;
 
@@ -1588,6 +1667,10 @@
                 console.error("BUTTONS INIT: Error adding command listener:", e);
             }
         }
+
+        // Setup context menu items and listeners
+        addContextMenuItem();
+        setupContextMenuListener();
     }
 
 
@@ -1657,10 +1740,11 @@
             const separatorExists = !!document.querySelector(".pinned-tabs-container-separator");
             const peripheryExists = !!document.querySelector('#tabbrowser-arrowscrollbox-periphery');
             const commandSetExists = !!document.querySelector("commandset#zenCommandSet");
+            const tabContextMenuExists = !!document.getElementById('tabContextMenu');
             const gBrowserReady = typeof gBrowser !== 'undefined' && gBrowser.tabContainer;
             const gZenWorkspacesReady = typeof gZenWorkspaces !== 'undefined' && typeof gZenWorkspaces.activeWorkspace !== 'undefined';
 
-            const ready = gBrowserReady && commandSetExists && (separatorExists || peripheryExists) && gZenWorkspacesReady;
+            const ready = gBrowserReady && commandSetExists && tabContextMenuExists && (separatorExists || peripheryExists) && gZenWorkspacesReady;
 
             if (ready) {
                 console.log(`INIT: Required elements found after ${checkCount} checks. Initializing...`);
@@ -1692,6 +1776,7 @@
                 console.error("INIT Status:", {
                     gBrowserReady,
                     commandSetExists,
+                    tabContextMenuExists,
                     separatorExists,
                     peripheryExists,
                     gZenWorkspacesReady
@@ -1700,6 +1785,7 @@
                  if (!gZenWorkspacesReady) console.error(" -> gZenWorkspaces might not be fully initialized yet (activeWorkspace missing?). Ensure Zen Tab Organizer extension is loaded and enabled BEFORE this script runs.");
                  if (!separatorExists && !peripheryExists) console.error(" -> Neither separator element '.pinned-tabs-container-separator' nor fallback periphery '#tabbrowser-arrowscrollbox-periphery' found in the DOM.");
                  if (!commandSetExists) console.error(" -> Command set '#zenCommandSet' not found. Ensure Zen Tab Organizer extension is loaded and enabled.");
+                 if (!tabContextMenuExists) console.error(" -> Tab context menu '#tabContextMenu' not found. Ensure Zen Browser tab context menu is loaded.");
                  if (!gBrowserReady) console.error(" -> Global 'gBrowser' object not ready.");
             }
         }, checkInterval);

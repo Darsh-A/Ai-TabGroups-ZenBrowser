@@ -20,7 +20,8 @@
     "property": "extensions.tabgroups.enable_context_menu",
     "label": "Enable the sort tabs context menu item.",
     "type": "checkbox",
-    "defaultValue": true
+    "defaultValue": true,
+    "restart": true
     },
   {
     "property": "extensions.tabgroups.ai_model",

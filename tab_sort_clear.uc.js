@@ -5,6 +5,7 @@
     // Feature toggle preference keys
     const ENABLE_SORT_PREF = "extensions.tabgroups.enable_sort";
     const ENABLE_CLEAR_PREF = "extensions.tabgroups.enable_clear";
+    const ENABLE_CONTEXT_MENU_PREF = "extensions.tabgroups.enable_context_menu";
     // Preference Key for AI Model Selection
     const AI_MODEL_PREF = "extensions.tabgroups.ai_model"; // '1' for Gemini, '2' for Ollama, '3' for Mistral
     // Preference Keys for AI Config
@@ -38,6 +39,7 @@
     // Read preference values
     const ENABLE_SORT_VALUE = getPref(ENABLE_SORT_PREF, true);
     const ENABLE_CLEAR_VALUE = getPref(ENABLE_CLEAR_PREF, true);
+    const ENABLE_CONTEXT_MENU_VALUE = getPref(ENABLE_CONTEXT_MENU_PREF, true);
     const AI_MODEL_VALUE = getPref(AI_MODEL_PREF, "1"); // Default to Gemini
     const OLLAMA_ENDPOINT_VALUE = getPref(OLLAMA_ENDPOINT_PREF, "http://localhost:11434/api/generate");
     const OLLAMA_MODEL_VALUE = getPref(OLLAMA_MODEL_PREF, "llama3.2");
@@ -49,7 +51,8 @@
     const CONFIG = {
         featureConfig: {
             sort: ENABLE_SORT_VALUE,
-            clear: ENABLE_CLEAR_VALUE
+            clear: ENABLE_CLEAR_VALUE,
+            contextMenu: ENABLE_CONTEXT_MENU_VALUE
         },
         apiConfig: {
             ollama: {
@@ -262,6 +265,17 @@
         @media not (-moz-bool-pref: "${ENABLE_CLEAR_PREF}") {
         
             #clear-button {
+            display: none;
+            }
+        }
+
+        @media not (-moz-bool-pref: "${ENABLE_CONTEXT_MENU_PREF}") {
+        
+            #context_zenSortTabs {
+            display: none;
+            }
+            
+            #context_zen-sort-tabs-separator {
             display: none;
             }
         }
@@ -1548,8 +1562,8 @@
                 
                 if (!menuItem || !separator) return;
 
-                // Check if sort feature is enabled
-                if (!CONFIG.featureConfig.sort) {
+                // Check if sort feature and context menu are enabled
+                if (!CONFIG.featureConfig.sort || !CONFIG.featureConfig.contextMenu) {
                     menuItem.setAttribute('hidden', 'true');
                     separator.setAttribute('hidden', 'true');
                     return;
@@ -1669,8 +1683,10 @@
         }
 
         // Setup context menu items and listeners
-        addContextMenuItem();
-        setupContextMenuListener();
+        if (CONFIG.featureConfig.contextMenu) {
+            addContextMenuItem();
+            setupContextMenuListener();
+        }
     }
 
 

@@ -1,6 +1,6 @@
-# ✨ AI Tab Groups for Zen Browser ✨
+‼️‼️ Currently broken due to discontinuation support for tab-groups officially from the zen team and clashing with its new features. i will try to look for a solution when im a bit free. PRs welcomed as always ^^
 
-‼️ Breaks for Zen version <1.15b, Please use the latest script.
+# ✨ AI Tab Groups for Zen Browser ✨
 
 https://github.com/user-attachments/assets/fc792843-b1da-448e-ba00-63322a3d9c99
 

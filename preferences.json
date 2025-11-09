@@ -35,6 +35,10 @@
       {
         "value": 3,
         "label": "Mistral"
+      },
+      {
+        "value": 4,
+        "label": "OpenAI-Compatible"
       }
     ],
     "conditions": [
@@ -130,13 +134,46 @@
     "operator": "AND"
   },
   {
-    "property": "extensions.tabgroups.mistral_model",
-    "label": "Mistral Model to Use For Renaming",
-    "default": "mistral-large-latest",
-    "type": "string",
-    "placeholder": "Enter your Mistral Model here",
+    "type": "separator",
+    "label": "OpenAI-Compatible",
+    "id": "openai-separator",
     "conditions": [
-      { "if": { "property": "extensions.tabgroups.ai_model", "value": 3 } }, 
+      { "if": { "property": "extensions.tabgroups.ai_model", "value": 4 } }, 
+      { "if": { "property": "extensions.tabgroups.enable_sort", "value":true}}
+    ],
+    "operator": "AND"
+  },
+  {
+    "property": "extensions.tabgroups.openai_endpoint",
+    "label": "OpenAI-Compatible Endpoint URL",
+    "default": "https://api.openai.com/v1/chat/completions",
+    "type": "string",
+    "placeholder": "Enter your OpenAI-Compatible endpoint URL here",
+    "conditions": [
+      { "if": { "property": "extensions.tabgroups.ai_model", "value": 4 } }, 
+      { "if": { "property": "extensions.tabgroups.enable_sort", "value":true}}
+    ],
+    "operator": "AND"
+  },
+  {
+    "property": "extensions.tabgroups.openai_api_key",
+    "label": "OpenAI-Compatible API Key",
+    "type": "string",
+    "placeholder": "Enter your OpenAI-Compatible API key here",
+    "conditions": [
+      { "if": { "property": "extensions.tabgroups.ai_model", "value": 4 } }, 
+      { "if": { "property": "extensions.tabgroups.enable_sort", "value":true}}
+    ],
+    "operator": "AND"
+  },
+  {
+    "property": "extensions.tabgroups.openai_model",
+    "label": "OpenAI-Compatible Model to Use For Renaming",
+    "default": "gpt-4o-mini",
+    "type": "string",
+    "placeholder": "Enter your OpenAI-Compatible model here",
+    "conditions": [
+      { "if": { "property": "extensions.tabgroups.ai_model", "value": 4 } }, 
       { "if": { "property": "extensions.tabgroups.enable_sort", "value":true}}
     ],
     "operator": "AND"

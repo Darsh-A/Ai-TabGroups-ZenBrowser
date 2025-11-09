@@ -16,6 +16,13 @@
     "type": "checkbox",
     "defaultValue": true
     },
+    {
+    "property": "extensions.tabgroups.enable_context_menu",
+    "label": "Enable the sort tabs context menu item.",
+    "type": "checkbox",
+    "defaultValue": true,
+    "restart": true
+    },
   {
     "property": "extensions.tabgroups.ai_model",
     "label": "Choose AI - Gemini, Ollama, or Mistral",
